@@ -173,7 +173,7 @@ section[data-testid="stSidebar"] {{
     color: {UW_PURPLE};
     letter-spacing: -5px;
     line-height: 1;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); /* Subtle shadow for contrast */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow for contrast */
 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 
@@ -182,6 +182,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-weight: 400;
     color: #666;
     letter-spacing: -1px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2); /* Subtle shadow for contrast */
     margin-left: 3px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
@@ -211,20 +212,21 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
 /* Button styling */
 .stButton > button {{
-    width: 100%;
+    width: 95%;
     background: white;
-    color: {UW_PURPLE};
-    border: 2px solid {UW_PURPLE};
+    color: #333;
+    border: 2px solid #4B2E83;
     font-weight: 600;
     font-size: 0.95rem;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     padding: 0.75rem;
     transition: all 0.2s;
     margin-bottom: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for lift */
 }}
 
 .stButton > button:hover {{
-    background: {UW_PURPLE};
+    background: #6A4DAE;
     color: white;
     transform: translateY(-1px);
 }}
