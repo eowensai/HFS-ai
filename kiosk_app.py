@@ -73,7 +73,7 @@ TIMEZONE = pytz.timezone('America/Los_Angeles')
 # 2.2 - UI Color Scheme (University of Washington branding)
 # ──────────────────────────────────────────────────────────────────
 UW_PURPLE = "#4B2E83"       # Primary brand color
-UW_LIGHT_PURPLE = "#E8E3F3" # Sidebar background
+UW_LIGHT_PURPLE = "#EFEAF8" # Sidebar background
 
 # ──────────────────────────────────────────────────────────────────
 # 2.3 - Model Parameters (Gemma-optimized settings)
@@ -105,7 +105,7 @@ except TikaException:
 # 3.2 - Streamlit Page Config
 # ──────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="HFS AI Assistant", 
+    page_title="HFS AI Assistant",
     layout="wide",                      # Use full screen width
     initial_sidebar_state="expanded"    # Keep sidebar visible
 )
@@ -163,7 +163,7 @@ section[data-testid="stSidebar"] {{
 /* Large sidebar logo with better spacing */
 .hfs-logo {{
     text-align: center;
-    margin: 1rem 0 5rem 0;  /* Increased top margin for better centering */
+    margin: 0rem 0 5rem 0;  /* Increased top margin for better centering */
     padding: 0 1rem;
 }}
 
@@ -173,15 +173,16 @@ section[data-testid="stSidebar"] {{
     color: {UW_PURPLE};
     letter-spacing: -5px;
     line-height: 1;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); /* Subtle shadow for contrast */
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 
 .hfs-logo .ai {{
     font-size: 3em;  /* Increased from 2.5em for better visibility */
-    font-weight: 300;
+    font-weight: 400;
     color: #666;
     letter-spacing: -1px;
-    margin-left: 2px;
+    margin-left: 3px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 
@@ -192,18 +193,19 @@ section[data-testid="stSidebar"] {{
 }}
 
 .welcome-text .hfs {{
-    font-size: 2em;
+    font-size: 2.2em;
     font-weight: 900;
     color: {UW_PURPLE};
-    letter-spacing: -2px;
+    letter-spacing: -5px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 
 .welcome-text .ai {{
-    font-size: 1em;
-    font-weight: 300;
+    font-size: 1.2em;
+    font-weight: 400;
     color: #666;
     letter-spacing: -1px;
+    margin-left: 2px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 
@@ -318,7 +320,7 @@ def backend_up() -> bool:
     """
     Check if the LLM backend service is accessible.
     Tries common health check endpoints.
-    
+
     Returns:
         bool: True if backend is responsive, False otherwise
     """
@@ -338,10 +340,10 @@ def preview_text(parts):
     """
     Extract text preview from multipart message content.
     Used for displaying complex messages in chat history.
-    
+
     Args:
         parts: List of message parts (text, images, etc.)
-    
+
     Returns:
         str: Text content or "[complex]" placeholder
     """
@@ -393,13 +395,13 @@ with st.sidebar:
             accept_multiple_files=True,
             key=f"uploader_{st.session_state.get('uploader_key', 0)}",
         )
-        
+
         if uploads:
             st.session_state.pending_files.clear()
-            
+
             for f in uploads:
                 data = f.getvalue()
-                
+
                 # Process image files
                 if f.type and f.type.startswith("image/"):
                     st.session_state.pending_files.append(
@@ -410,13 +412,13 @@ with st.sidebar:
                             "data": base64.b64encode(data).decode(),
                         }
                     )
-                
+
                 # Process all other files with Tika
                 else:
                     if not TIKA_OK:
                         st.warning("📄 Document parsing unavailable")
                         continue
-                    
+
                     # Try to extract text using Tika - no size limits
                     with st.spinner(f"Parsing {f.name}..."):
                         try:
@@ -431,7 +433,7 @@ with st.sidebar:
                                 st.warning(f"⚠️ {f.name}: No text found")
                         except Exception as e:
                             st.error(f"❌ Error parsing {f.name}: {str(e)[:50]}")
-            
+
             # Hide uploader and increment key to reset widget
             st.session_state.show_uploader = False
             st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
@@ -496,7 +498,7 @@ if prompt := st.chat_input("Ask me anything…"):
     # Build system prompt with current Pacific Time
     pacific_now = datetime.now(TIMEZONE)
     current_time = pacific_now.strftime("%Y-%m-%d %H:%M:%S PST")
-    
+
     system_prompt = f"""You are HFS-ai, an AI assistant. You are a general-purpose service and should be helpful, clear, and direct.
 - Your knowledge is general; you do not have specific information about University of Washington departments, housing, dining, schedules, or events unless it is provided in an attached file.
 - Base your responses only on the information you were trained on or the context provided in the user's query and attached files/images.
@@ -512,7 +514,7 @@ The current date and time is {current_time}."""
     # Handle attached files
     if st.session_state.pending_files:
         parts = []
-        
+
         # Add document content first
         docs = [f for f in st.session_state.pending_files if f["type"] == "doc"]
         if docs:
@@ -524,7 +526,7 @@ The current date and time is {current_time}."""
                     ),
                 }
             )
-        
+
         # Add images
         for f in st.session_state.pending_files:
             if f["type"] == "image":
@@ -536,7 +538,7 @@ The current date and time is {current_time}."""
                         },
                     }
                 )
-        
+
         # Add user prompt at end
         parts.append({"type": "text", "text": prompt})
         user_msg["content"] = parts
@@ -554,11 +556,11 @@ The current date and time is {current_time}."""
             # Initialize OpenAI-compatible client
             client = OpenAI(base_url=LLM_BASE_URL, api_key="not-needed")
             acc, box = "", st.empty()
-            
+
             # Stream response with all model parameters
             for d in client.chat.completions.create(
-                model=MODEL_NAME, 
-                messages=msgs, 
+                model=MODEL_NAME,
+                messages=msgs,
                 stream=True,
                 temperature=TEMPERATURE,
                 top_p=TOP_P,
@@ -571,15 +573,15 @@ The current date and time is {current_time}."""
             ):
                 acc += d.choices[0].delta.content or ""
                 box.markdown(acc + "▌")  # Show typing indicator
-            
+
             # Display final response
             box.markdown(acc)
-            
+
             # Save to history
             st.session_state.messages.append(
                 {"role": "assistant", "content": acc}
             )
             rerun()
-            
+
         except Exception as e:
             st.error(f"❌ LLM Error: {str(e)}")
