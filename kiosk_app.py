@@ -212,7 +212,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
 /* Button styling */
 .stButton > button {{
-    width: 95%;
+    width: 100%;
     background: white;
     color: #333;
     border: 2px solid #4B2E83;
