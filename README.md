@@ -84,4 +84,4 @@ Troubleshooting
       View logs: docker-compose logs tika
 
 Support
-   For issues or questions, please email eko@uw.edu
+   For issues or questions, please email eko@uw.edu 
