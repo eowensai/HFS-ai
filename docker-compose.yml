@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  kiosk-app:
+    build: .
+    container_name: kiosk-app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    networks:
+      - llm-net
+    environment:
+      - LLM_MODEL_NAME=HFS-ai
+      - LLM_BASE_URL=http://llm-server:8080/v1
+      - TIKA_URL=http://tika-server:9998
+      - TIKA_CLIENT_ONLY=true
+
+networks:
+  llm-net:
+    external: true
