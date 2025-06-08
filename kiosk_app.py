@@ -1,5 +1,13 @@
 """
-kiosk_app.py – V 11.6  (Fixed timezone for Seattle/Pacific)
+kiosk_app.py – V 11.7  (Improved UI spacing, removed file restrictions)
+
+CHANGES IN V11.7:
+- Increased top margin for HFS logo for better centering
+- Made "-ai" text slightly larger (2.5em → 3em)
+- Removed unused gold background code (keeping white background)
+- Removed all file size restrictions
+- Removed file type restrictions (accepts all file types)
+- Updated comments to reflect changes
 
 TABLE OF CONTENTS:
 1.0 - IMPORTS AND DEPENDENCIES
@@ -44,7 +52,7 @@ from tika import parser
 from tika.tika import TikaException
 from openai import OpenAI
 from datetime import datetime
-import pytz  # Added for timezone support
+import pytz  # For timezone support
 
 # ══════════════════════════════════════════════════════════════════
 # 2.0 - CONFIGURATION AND CONSTANTS
@@ -53,10 +61,6 @@ import pytz  # Added for timezone support
 # ──────────────────────────────────────────────────────────────────
 # 2.1 - System Configuration
 # ──────────────────────────────────────────────────────────────────
-# File size limits to prevent server overload
-MAX_IMAGE_MB = 10  # Maximum image file size in megabytes
-MAX_DOC_MB = 5     # Maximum document file size in megabytes
-
 # Service endpoints - these should be set via environment variables
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm-server:8080/v1")
 MODEL_NAME = os.getenv("LLM_MODEL_NAME", "local-model")
@@ -69,7 +73,6 @@ TIMEZONE = pytz.timezone('America/Los_Angeles')
 # 2.2 - UI Color Scheme (University of Washington branding)
 # ──────────────────────────────────────────────────────────────────
 UW_PURPLE = "#4B2E83"       # Primary brand color
-UW_GOLD = "#B7A57A"         # Secondary brand color
 UW_LIGHT_PURPLE = "#E8E3F3" # Sidebar background
 
 # ──────────────────────────────────────────────────────────────────
@@ -141,11 +144,11 @@ section[data-testid="stSidebar"] {{
     max-width: 280px !important;
     transform: none !important;
     background: {UW_LIGHT_PURPLE};
-    padding-top: 0.5rem;  /* Reduced to move logo up */
+    padding-top: 0.5rem;
 }}
 
 /* ────────────────────────────────────────────────────────────────
-   4.3 - Main Content Area
+   4.3 - Main Content Area (Clean white background)
    ──────────────────────────────────────────────────────────────── */
 .main .block-container {{
     background: white;
@@ -157,15 +160,15 @@ section[data-testid="stSidebar"] {{
    4.4 - Component Styling
    ──────────────────────────────────────────────────────────────── */
 
-/* Large sidebar logo (increased size) */
+/* Large sidebar logo with better spacing */
 .hfs-logo {{
     text-align: center;
-    margin: 0.5rem 0 2rem 0;  /* Reduced top margin */
+    margin: 2rem 0 3rem 0;  /* Increased top margin for better centering */
     padding: 0 1rem;
 }}
 
 .hfs-logo .hfs {{
-    font-size: 5em;  /* Increased from 4.5em */
+    font-size: 5em;
     font-weight: 900;
     color: {UW_PURPLE};
     letter-spacing: -5px;
@@ -174,7 +177,7 @@ section[data-testid="stSidebar"] {{
 }}
 
 .hfs-logo .ai {{
-    font-size: 2.5em;  /* Increased proportionally */
+    font-size: 3em;  /* Increased from 2.5em for better visibility */
     font-weight: 300;
     color: #666;
     letter-spacing: -1px;
@@ -215,7 +218,7 @@ section[data-testid="stSidebar"] {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     padding: 0.75rem;
     transition: all 0.2s;
-    margin-bottom: 0.5rem;  /* Add spacing between buttons */
+    margin-bottom: 0.5rem;
 }}
 
 .stButton > button:hover {{
@@ -238,10 +241,10 @@ section[data-testid="stSidebar"] {{
 }}
 
 [data-testid="chatAvatarIcon-assistant"] {{
-    background-color: {UW_GOLD} !important;
+    background-color: #B7A57A !important;  /* UW Gold for assistant */
 }}
 
-/* Chat input box - fixed white space issue */
+/* Chat input box */
 .stChatInput {{
     border: none !important;
     background: transparent !important;
@@ -384,9 +387,9 @@ with st.sidebar:
     # 7.4 - File Upload Handler
     # ──────────────────────────────────────────────────────────────
     if st.session_state.show_uploader:
+        # Accept ALL file types - let Tika handle what it can
         uploads = st.file_uploader(
             "Select files:",
-            type=["pdf", "docx", "png", "jpg", "jpeg"],
             accept_multiple_files=True,
             key=f"uploader_{st.session_state.get('uploader_key', 0)}",
         )
@@ -399,9 +402,6 @@ with st.sidebar:
                 
                 # Process image files
                 if f.type and f.type.startswith("image/"):
-                    if len(data) > MAX_IMAGE_MB * 1024 * 1024:
-                        st.warning(f"⚠️ {f.name} > {MAX_IMAGE_MB} MB")
-                        continue
                     st.session_state.pending_files.append(
                         {
                             "name": f.name,
@@ -411,16 +411,13 @@ with st.sidebar:
                         }
                     )
                 
-                # Process document files
+                # Process all other files with Tika
                 else:
-                    if len(data) > MAX_DOC_MB * 1024 * 1024:
-                        st.warning(f"⚠️ {f.name} > {MAX_DOC_MB} MB")
-                        continue
                     if not TIKA_OK:
                         st.warning("📄 Document parsing unavailable")
                         continue
                     
-                    # Extract text using Tika
+                    # Try to extract text using Tika - no size limits
                     with st.spinner(f"Parsing {f.name}..."):
                         try:
                             txt = parser.from_buffer(
@@ -433,7 +430,7 @@ with st.sidebar:
                             else:
                                 st.warning(f"⚠️ {f.name}: No text found")
                         except Exception as e:
-                            st.error(f"❌ Error: {str(e)[:50]}")
+                            st.error(f"❌ Error parsing {f.name}: {str(e)[:50]}")
             
             # Hide uploader and increment key to reset widget
             st.session_state.show_uploader = False
@@ -449,9 +446,11 @@ with st.sidebar:
         for i, f in enumerate(st.session_state.pending_files):
             col1, col2 = st.columns([4, 1])
             with col1:
+                # Choose icon based on file type
+                icon = "🖼️" if f['type'] == 'image' else "📄"
                 st.markdown(
                     f"""<div class='attached-file'>
-                        📄 {f['name']}
+                        {icon} {f['name']}
                     </div>""",
                     unsafe_allow_html=True
                 )
