@@ -163,7 +163,7 @@ section[data-testid="stSidebar"] {{
 /* Large sidebar logo with better spacing */
 .hfs-logo {{
     text-align: center;
-    margin: 2rem 0 3rem 0;  /* Increased top margin for better centering */
+    margin: 1rem 0 5rem 0;  /* Increased top margin for better centering */
     padding: 0 1rem;
 }}
 
