@@ -67,8 +67,6 @@ Development
       streamlit run kiosk_app.py
 
 Deployment
-   For production deployment:
-   
    Update docker-compose.yml with production URLs
    Consider using a reverse proxy (nginx) for HTTPS
    Add authentication if needed
