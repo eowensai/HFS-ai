@@ -1,0 +1,54 @@
+/* theme.css  –  UW-branded stylesheet for HFS-ai */
+
+/* 4.1 – Chrome Hiding */
+#MainMenu, header, footer {visibility:hidden;}
+.stDeployButton{display:none;}
+[data-testid="stToolbar"],[data-testid="stStatusWidget"]{display:none!important;}
+
+/* Collapse controls hidden */
+button[aria-label*="sidebar"],[data-testid="stSidebarCollapseControl"],
+[data-testid="collapsedControl"],[data-testid="baseButton-header"]{
+  display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}
+
+/* 4.2 – Sidebar */
+section[data-testid="stSidebar"]{width:280px!important;background:#EFEAF8;
+  padding-top:0.5rem;border-right:2px solid #4B2E83!important;}
+
+/* 4.3 – Main area */
+.main .block-container{background:white;padding:2rem 2rem 2rem 0;max-width:1200px;}
+
+/* 4.4 – Components (logo, buttons, chat, etc.) */
+.hfs-logo{text-align:center;margin:0 0 5rem 0;padding:0 1rem;}
+.hfs-logo .hfs{font-size:5em;font-weight:900;color:#4B2E83;letter-spacing:-5px;line-height:1;
+  text-shadow:2px 2px 4px rgba(0,0,0,0.2);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+.hfs-logo .ai{font-size:3em;font-weight:400;color:#666;letter-spacing:-1px;text-shadow:1px 1px 2px rgba(0,0,0,0.2);
+  margin-left:3px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+
+.welcome-text{text-align:center;padding:3rem 0;}
+.welcome-text .hfs{font-size:2.2em;font-weight:900;color:#4B2E83;letter-spacing:-5px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+.welcome-text .ai{font-size:1.2em;font-weight:400;color:#666;letter-spacing:-1px;margin-left:3px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+
+.stButton>button{width:100%;background:white;color:#333;border:2px solid #4B2E83;
+  font-weight:600;font-size:0.95rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding:0.75rem;margin-bottom:0.5rem;transition:all .2s;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.stButton>button:hover{background:#6A4DAE;color:white;transform:translateY(-1px);}
+.stButton>button:focus{background:white!important;color:#4B2E83!important;border:2px solid #4B2E83!important;
+  box-shadow:0 0 0 2px rgba(75,46,131,0.2)!important;outline:none!important;}
+.stButton>button:focus:not(:focus-visible){box-shadow:none!important;}
+.stButton>button:active{background:#4B2E83!important;color:white!important;border:2px solid #4B2E83!important;}
+
+.stChatMessage{background:white;border-radius:8px;margin:0.5rem 0;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+[data-testid="chatAvatarIcon-user"]{background-color:#4B2E83!important;}
+[data-testid="chatAvatarIcon-assistant"]{background-color:#B7A57A!important;}
+
+.stChatInput{border:none!important;background:transparent!important;padding:0!important;}
+.stChatInput>div{background:white!important;border:2px solid #8a8a8a!important;border-radius:4px!important;
+  margin:0!important;padding:0!important;}
+.stChatInput textarea{border:none!important;background:white!important;padding:0.75rem!important;margin:0!important;}
+.stChatInput>div:focus-within{border-color:#4B2E83!important;box-shadow:0 0 0 1px #4B2E83!important;}
+
+[data-testid="stFileUploader"]>div{background:white;border:2px solid #4B2E83;border-radius:4px;padding:1rem;}
+.attached-file{background:white;padding:0.5rem 1rem;border-radius:4px;margin:0.5rem 0;font-size:0.9em;
+  border:1px solid #E0E0E0;}
