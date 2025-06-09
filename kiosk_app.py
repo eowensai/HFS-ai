@@ -1,4 +1,4 @@
-# kiosk_app.py – V12.6
+# kiosk_app.py – V12.7
 #
 # TABLE OF CONTENTS:
 # 1.0 – IMPORTS AND DEPENDENCIES
@@ -7,12 +7,7 @@
 #    2.2 – UI Color Scheme
 #    2.3 – Model Parameters
 # 3.0 – INITIALIZATION
-#    3.1 – Tika Setup
-# 4.0 – USER INTERFACE STYLING
-#    4.1 – Chrome Hiding
-#    4.2 – Sidebar Styling
-#    4.3 – Main Content Area
-#    4.4 – Component Styling
+# 4.0 – USER INTERFACE STYLING (external CSS)
 # 5.0 – SESSION STATE MANAGEMENT
 # 6.0 – HELPER FUNCTIONS
 #    6.1 – Backend Health Check
@@ -29,19 +24,18 @@
 #    8.3 – User Input Handler
 #    8.4 – LLM Integration
 # 9.0 – NAVIGATION CONTROLS
-#    9.1 – Go Back Button
 
 """
-kiosk_app.py v12.6 – HFS AI Assistant
+kiosk_app.py v12.7 – HFS AI Assistant
 
 A Streamlit-based chat interface that:
-  • Connects to a local LLM backend via OpenAI-compatible API  
-  • Parses user-uploaded documents through an external Tika service  
-  • Renders a clean UW-branded UI with custom CSS  
+  • Connects to a local LLM backend via OpenAI-compatible API
+  • Parses user-uploaded documents through an external Tika service
+  • Renders a clean UW-branded UI via an external CSS file (theme.css)
 
 Dependencies:
-  • Python 3.11  
-  • streamlit, openai, tika, requests, pytz  
+  • Python 3.11
+  • streamlit, openai, tika, requests, pytz
 """
 
 # ══════════════════════════════════════════════════════════════════
@@ -52,6 +46,7 @@ Dependencies:
 import os
 import base64
 from datetime import datetime
+import pathlib
 
 # Third-party
 import streamlit as st
@@ -104,66 +99,16 @@ except TikaException:
     TIKA_OK = False
 
 # ══════════════════════════════════════════════════════════════════
-# 4.0 – USER INTERFACE STYLING   (FULL original CSS)
+# 4.0 – USER INTERFACE STYLING  (external CSS)
 # ══════════════════════════════════════════════════════════════════
-st.markdown(
-    f"""
-<style>
-/* 4.1 – Chrome Hiding */
-#MainMenu, header, footer {{visibility:hidden;}}
-.stDeployButton{{display:none;}}
-[data-testid="stToolbar"],[data-testid="stStatusWidget"]{{display:none!important;}}
+def load_css(path: str = "theme.css") -> None:
+    css_path = pathlib.Path(path)
+    if css_path.exists():
+        st.markdown(f"<style>{css_path.read_text()}</style>", unsafe_allow_html=True)
+    else:
+        st.error(f"❌ Styling file missing: {path}")
 
-/* Collapse controls hidden */
-button[aria-label*="sidebar"],[data-testid="stSidebarCollapseControl"],
-[data-testid="collapsedControl"],[data-testid="baseButton-header"]{{
-  display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}}
-
-/* 4.2 – Sidebar */
-section[data-testid="stSidebar"]{{width:280px!important;background:{UW_LIGHT_PURPLE};
-  padding-top:0.5rem;border-right:2px solid {UW_PURPLE}!important;}}
-
-/* 4.3 – Main area */
-.main .block-container{{background:white;padding:2rem 2rem 2rem 0;max-width:1200px;}}
-
-/* 4.4 – Components (logo, buttons, chat, etc.) */
-.hfs-logo{{text-align:center;margin:0 0 5rem 0;padding:0 1rem;}}
-.hfs-logo .hfs{{font-size:5em;font-weight:900;color:{UW_PURPLE};letter-spacing:-5px;line-height:1;
-  text-shadow:2px 2px 4px rgba(0,0,0,0.2);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}}
-.hfs-logo .ai{{font-size:3em;font-weight:400;color:#666;letter-spacing:-1px;text-shadow:1px 1px 2px rgba(0,0,0,0.2);
-  margin-left:3px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}}
-
-.welcome-text{{text-align:center;padding:3rem 0;}}
-.welcome-text .hfs{{font-size:2.2em;font-weight:900;color:{UW_PURPLE};letter-spacing:-5px;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}}
-.welcome-text .ai{{font-size:1.2em;font-weight:400;color:#666;letter-spacing:-1px;margin-left:3px;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}}
-
-.stButton>button{{width:100%;background:white;color:#333;border:2px solid {UW_PURPLE};
-  font-weight:600;font-size:0.95rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  padding:0.75rem;margin-bottom:0.5rem;transition:all .2s;box-shadow:0 2px 4px rgba(0,0,0,0.1);}}
-.stButton>button:hover{{background:#6A4DAE;color:white;transform:translateY(-1px);}}
-.stButton>button:focus{{background:white!important;color:{UW_PURPLE}!important;border:2px solid {UW_PURPLE}!important;
-  box-shadow:0 0 0 2px rgba(75,46,131,0.2)!important;outline:none!important;}}
-.stButton>button:focus:not(:focus-visible){{box-shadow:none!important;}}
-.stButton>button:active{{background:{UW_PURPLE}!important;color:white!important;border:2px solid {UW_PURPLE}!important;}}
-
-.stChatMessage{{background:white;border-radius:8px;margin:0.5rem 0;box-shadow:0 1px 3px rgba(0,0,0,0.05);}}
-[data-testid="chatAvatarIcon-user"]{{background-color:{UW_PURPLE}!important;}}
-[data-testid="chatAvatarIcon-assistant"]{{background-color:#B7A57A!important;}}
-
-.stChatInput{{border:none!important;background:transparent!important;padding:0!important;}}
-.stChatInput>div{{background:white!important;border:2px solid #8a8a8a!important;border-radius:4px!important;
-  margin:0!important;padding:0!important;}}
-.stChatInput textarea{{border:none!important;background:white!important;padding:0.75rem!important;margin:0!important;}}
-.stChatInput>div:focus-within{{border-color:{UW_PURPLE}!important;box-shadow:0 0 0 1px {UW_PURPLE}!important;}}
-
-[data-testid="stFileUploader"]>div{{background:white;border:2px solid {UW_PURPLE};border-radius:4px;padding:1rem;}}
-.attached-file{{background:white;padding:0.5rem 1rem;border-radius:4px;margin:0.5rem 0;font-size:0.9em;
-  border:1px solid #E0E0E0;}}
-</style>""",
-    unsafe_allow_html=True,
-)
+load_css()
 
 # ══════════════════════════════════════════════════════════════════
 # 5.0 – SESSION STATE MANAGEMENT
@@ -366,7 +311,7 @@ if prompt := st.chat_input("Ask me anything…"):
             st.error(f"❌ LLM Error: {e}")
 
 # ══════════════════════════════════════════════════════════════════
-# 9.0 – NAVIGATION CONTROLS  (Step-4 change only)
+# 9.0 – NAVIGATION CONTROLS
 # ══════════════════════════════════════════════════════════════════
 if "code" in st.query_params:
     if st.button("Go Back", use_container_width=True):
