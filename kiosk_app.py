@@ -459,7 +459,7 @@ with st.sidebar:
                     unsafe_allow_html=True
                 )
             with col2:
-                if st.button("❌", key=f"del_{i}"):
+                if st.button("❌", key=f"del_{i}", help=f"Remove {f['name']}"):
                     st.session_state.pending_files.pop(i)
                     rerun()
 
