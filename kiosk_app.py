@@ -54,6 +54,15 @@ from openai import OpenAI
 from datetime import datetime
 import pytz  # For timezone support
 
+# ──────────────────────────────────────────────────────────────────
+# 1.1 - Streamlit Page Config
+# ──────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="HFS AI Assistant",
+    layout="wide",                      # Use full screen width
+    initial_sidebar_state="expanded"    # Keep sidebar visible
+)
+
 # ══════════════════════════════════════════════════════════════════
 # 2.0 - CONFIGURATION AND CONSTANTS
 # ══════════════════════════════════════════════════════════════════
@@ -100,15 +109,6 @@ try:
 except TikaException:
     # Tika service unavailable - document uploads will be disabled
     TIKA_OK = False
-
-# ──────────────────────────────────────────────────────────────────
-# 3.2 - Streamlit Page Config
-# ──────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="HFS AI Assistant",
-    layout="wide",                      # Use full screen width
-    initial_sidebar_state="expanded"    # Keep sidebar visible
-)
 
 # ══════════════════════════════════════════════════════════════════
 # 4.0 - USER INTERFACE STYLING
