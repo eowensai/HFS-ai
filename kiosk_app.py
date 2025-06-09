@@ -294,6 +294,31 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 </style>
 """,
+    unsafe_allow_html=True,  # This closes the CSS markdown
+)
+
+# Auto-focus chat input on page load
+st.markdown(
+    """
+    <script>
+    // Auto-focus the chat input field
+    function focusChatInput() {
+        const chatInput = document.querySelector('[data-testid="stChatInput"] textarea');
+        if (chatInput) {
+            chatInput.focus();
+        }
+    }
+    
+    // Try immediately and after short delays to ensure element is loaded
+    focusChatInput();
+    setTimeout(focusChatInput, 100);
+    setTimeout(focusChatInput, 500);
+    
+    // Also focus after any Streamlit rerun
+    const observer = new MutationObserver(focusChatInput);
+    observer.observe(document.body, { childList: true, subtree: true });
+    </script>
+    """,
     unsafe_allow_html=True,
 )
 
