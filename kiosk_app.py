@@ -43,16 +43,19 @@ TABLE OF CONTENTS:
 # ══════════════════════════════════════════════════════════════════
 # 1.0 - IMPORTS AND DEPENDENCIES
 # ══════════════════════════════════════════════════════════════════
-import streamlit as st
+# Standard library
 import os
 import base64
+from datetime import datetime
+
+# Third-party
+import streamlit as st
 import requests
+import pytz
 import tika
 from tika import parser
 from tika.tika import TikaException
 from openai import OpenAI
-from datetime import datetime
-import pytz  # For timezone support
 
 # ──────────────────────────────────────────────────────────────────
 # 1.1 - Streamlit Page Config
