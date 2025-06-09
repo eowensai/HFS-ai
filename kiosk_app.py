@@ -1,48 +1,52 @@
+#kiosk_app.py – V 12
+#
+#TABLE OF CONTENTS:
+#1.0 - IMPORTS AND DEPENDENCIES
+#2.0 - CONFIGURATION AND CONSTANTS
+#   2.1 - System Configuration
+#   2.2 - UI Color Scheme
+#   2.3 - Model Parameters
+#3.0 - INITIALIZATION
+#   3.1 - Tika Setup
+#   3.2 - Streamlit Page Config
+#4.0 - USER INTERFACE STYLING
+#   4.1 - Chrome Hiding
+#   4.2 - Sidebar Styling
+#   4.3 - Main Content Area
+#   4.4 - Component Styling
+#5.0 - SESSION STATE MANAGEMENT
+#6.0 - HELPER FUNCTIONS
+#   6.1 - Backend Health Check
+#   6.2 - Content Preview
+#7.0 - SIDEBAR INTERFACE
+#   7.1 - Logo Display
+#   7.2 - Status Indicators
+#   7.3 - Action Buttons
+#   7.4 - File Upload Handler
+#   7.5 - Attached Files Display
+#8.0 - MAIN CHAT INTERFACE
+#   8.1 - Welcome Screen
+#   8.2 - Chat History Display
+#   8.3 - User Input Handler
+#   8.4 - LLM Integration
+
 """
-kiosk_app.py – V 11.7  (Improved UI spacing, removed file restrictions)
+kiosk_app.py v12 – HFS AI Assistant
 
-CHANGES IN V11.7:
-- Increased top margin for HFS logo for better centering
-- Made "-ai" text slightly larger (2.5em → 3em)
-- Removed unused gold background code (keeping white background)
-- Removed all file size restrictions
-- Removed file type restrictions (accepts all file types)
-- Updated comments to reflect changes
+A Streamlit-based chat interface that:
+  • Connects to a local LLM backend via OpenAI-compatible API  
+  • Parses user-uploaded documents through an external Tika service  
+  • Renders a clean UW-branded UI with custom CSS  
 
-TABLE OF CONTENTS:
-1.0 - IMPORTS AND DEPENDENCIES
-2.0 - CONFIGURATION AND CONSTANTS
-    2.1 - System Configuration
-    2.2 - UI Color Scheme
-    2.3 - Model Parameters
-3.0 - INITIALIZATION
-    3.1 - Tika Setup
-    3.2 - Streamlit Page Config
-4.0 - USER INTERFACE STYLING
-    4.1 - Chrome Hiding
-    4.2 - Sidebar Styling
-    4.3 - Main Content Area
-    4.4 - Component Styling
-5.0 - SESSION STATE MANAGEMENT
-6.0 - HELPER FUNCTIONS
-    6.1 - Backend Health Check
-    6.2 - Content Preview
-7.0 - SIDEBAR INTERFACE
-    7.1 - Logo Display
-    7.2 - Status Indicators
-    7.3 - Action Buttons
-    7.4 - File Upload Handler
-    7.5 - Attached Files Display
-8.0 - MAIN CHAT INTERFACE
-    8.1 - Welcome Screen
-    8.2 - Chat History Display
-    8.3 - User Input Handler
-    8.4 - LLM Integration
+Dependencies:
+  • Python 3.11  
+  • streamlit, openai, tika, requests, pytz  
 """
 
 # ══════════════════════════════════════════════════════════════════
-# 1.0 - IMPORTS AND DEPENDENCIES
+# 1.0 - IMPORTS AND CONFIG
 # ══════════════════════════════════════════════════════════════════
+
 # Standard library
 import os
 import base64
@@ -62,9 +66,27 @@ from openai import OpenAI
 # ──────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="HFS AI Assistant",
-    layout="wide",                      # Use full screen width
-    initial_sidebar_state="expanded"    # Keep sidebar visible
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
+
+# ──────────────────────────────────────────────────────────────────
+# 1.2 - Custom CSS
+# ──────────────────────────────────────────────────────────────────
+CSS_STYLE = f"""
+<style>
+/* ────────────────────────────────────────────────────────────────
+   4.1 - Chrome Hiding
+   4.2 - Sidebar Styling
+   4.3 - Main Content Area
+   4.4 - Component Styling
+   (…all your UW-branded CSS here…)
+*/
+#MainMenu, header, footer {{ visibility: hidden; }}
+/* …etc… */
+</style>
+"""
+st.markdown(CSS_STYLE, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════
 # 2.0 - CONFIGURATION AND CONSTANTS
