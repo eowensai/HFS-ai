@@ -1,3 +1,4 @@
+eko@eko-MS-7D25:~/kiosk-llm$ cat kiosk_app.py
 """
 kiosk_app.py – V 11.7  (Improved UI spacing, removed file restrictions)
 
@@ -145,6 +146,7 @@ section[data-testid="stSidebar"] {{
     transform: none !important;
     background: {UW_LIGHT_PURPLE};
     padding-top: 0.5rem;
+    border-right: 2px solid {UW_PURPLE} !important;
 }}
 
 /* ────────────────────────────────────────────────────────────────
@@ -231,6 +233,26 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     transform: translateY(-1px);
 }}
 
+/* Override Streamlit's focus states for consistent appearance */
+.stButton > button:focus {{
+    background: white !important;
+    color: {UW_PURPLE} !important;
+    border: 2px solid {UW_PURPLE} !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(75, 46, 131, 0.2) !important;
+}}
+
+.stButton > button:focus:not(:focus-visible) {{
+    box-shadow: none !important;
+}}
+
+/* Ensure consistent appearance for active/clicked state */
+.stButton > button:active {{
+    background: {UW_PURPLE} !important;
+    color: white !important;
+    border: 2px solid {UW_PURPLE} !important;
+}}
+
 /* Chat message containers */
 .stChatMessage {{
     background: white;
@@ -257,7 +279,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
 .stChatInput > div {{
     background: white !important;
-    border: 1px solid #8a8a8a !important;
+    border: 2px solid #8a8a8a !important;
     border-radius: 4px !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -587,3 +609,4 @@ The current date and time is {current_time}."""
 
         except Exception as e:
             st.error(f"❌ LLM Error: {str(e)}")
+eko@eko-MS-7D25:~/kiosk-llm$
