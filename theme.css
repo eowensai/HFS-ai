@@ -14,8 +14,19 @@ button[aria-label*="sidebar"],[data-testid="stSidebarCollapseControl"],
 section[data-testid="stSidebar"]{width:280px!important;background:#EFEAF8;
   padding-top:0.5rem;border-right:2px solid #4B2E83!important;}
 
-/* 4.3 – Main area */
+/* 4.3 – Main area and text size */
 .main .block-container{background:white;padding:2rem 2rem 2rem 0;max-width:1200px;}
+
+.stChatMessage p,
+.stChatMessage li,
+.stChatMessage blockquote,
+.stChatMessage code {
+  font-size: 1.125rem !important;
+}
+
+.stChatInput textarea {
+  font-size: 1.125rem !important;
+}
 
 /* 4.4 – Components (logo, buttons, chat, etc.) */
 .hfs-logo{text-align:center;margin:0 0 5rem 0;padding:0 1rem;}
@@ -31,7 +42,7 @@ section[data-testid="stSidebar"]{width:280px!important;background:#EFEAF8;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
 
 .stButton>button{width:100%;background:white;color:#333;border:2px solid #4B2E83;
-  font-weight:600;font-size:0.95rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-weight:600;font-size:.95rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   padding:0.75rem;margin-bottom:0.5rem;transition:all .2s;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
 .stButton>button:hover{background:#6A4DAE;color:white;transform:translateY(-1px);}
 .stButton>button:focus{background:white!important;color:#4B2E83!important;border:2px solid #4B2E83!important;
@@ -50,5 +61,5 @@ section[data-testid="stSidebar"]{width:280px!important;background:#EFEAF8;
 .stChatInput>div:focus-within{border-color:#4B2E83!important;box-shadow:0 0 0 1px #4B2E83!important;}
 
 [data-testid="stFileUploader"]>div{background:white;border:2px solid #4B2E83;border-radius:4px;padding:1rem;}
-.attached-file{background:white;padding:0.5rem 1rem;border-radius:4px;margin:0.5rem 0;font-size:0.9em;
+.attached-file{background:white;padding:0.5rem 1rem;border-radius:4px;margin:0.5rem 0;font-size:0.95em;
   border:1px solid #E0E0E0;}
