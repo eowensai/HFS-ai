@@ -494,7 +494,7 @@ with st.sidebar:
 if not st.session_state.messages:
     st.markdown(
         """<div class='welcome-text'>
-            <h2>Welcome to <span class='hfs'>HFS</span><span class='ai'>-ai</span></h2>
+            <div style='font-size: 1.5em; font-weight: 600; margin: 0;'>Welcome to <span class='hfs'>HFS</span><span class='ai'>-ai</span></div>
         </div>""",
         unsafe_allow_html=True
     )
