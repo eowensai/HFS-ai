@@ -257,7 +257,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
 .stChatInput > div {{
     background: white !important;
-    border: 1px solid #ddd !important;
+    border: 1px solid #8a8a8a !important;
     border-radius: 4px !important;
     margin: 0 !important;
     padding: 0 !important;
