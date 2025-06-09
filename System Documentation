@@ -1,0 +1,94 @@
+System Documentation: HFS-ai Kiosk Front-End
+Version: 1.0
+Last Updated: June 7, 2025
+This document outlines the architecture, dependencies, configuration, and deployment procedures for the HFS-ai Kiosk application.
+1.0 Overview
+The HFS-ai Kiosk is a self-contained, browser-based chat interface designed to provide a front-end for a local Large Language Model (LLM). It features a clean, minimal UI, supports both document and image uploads for multimodal context, and is built to be ephemeral, ensuring no conversation data persists between sessions.
+The system is architected as a set of containerized services that communicate over a private network, ensuring the backend models are not directly exposed.
+2.0 System Architecture
+The application consists of three core, independent services running in Docker containers:
+1.	Kiosk Front-End (kiosk-app): A Streamlit application that serves the user-facing web interface. This is the only service that exposes a port to the local network.
+2.	LLM Backend (llm-server): A llama.cpp instance running in its OpenAI-compatible server mode. It performs all language and vision processing. It does not expose a port to the local network.
+3.	Document Parser (tika-server): An Apache Tika server instance. It is responsible for text extraction and Optical Character Recognition (OCR) from uploaded documents. It does not expose a port to the local network.
+These three containers communicate exclusively over a private Docker bridge network named llm-net.
+3.0 Core Components & Dependencies
+3.1 Kiosk Front-End (kiosk-app)
+•	Technology: Python 3.11 / Streamlit
+•	Container Name: kiosk-app
+•	Exposed Port: 8501
+•	Primary Dependencies (Python):
+o	streamlit: The core web framework.
+o	openai: The client library used to communicate with the llama.cpp server's API.
+o	tika: The client library used to communicate with the tika-server.
+o	requests: Used for performing health checks on the backend services.
+o	pytz: Used for providing timezone-aware timestamps in the system prompt.
+3.2 LLM Backend (llm-server)
+•	Technology: llama.cpp
+•	Container Name: llm-server
+•	Network Address: http://llm-server:8080
+•	Key Requirement: Must be launched with the --host 0.0.0.0 flag to be reachable by other containers on the network. Must be connected to the llm-net network.
+3.3 Document Parser (tika-server)
+•	Technology: Apache Tika (Java)
+•	Container Name: tika-server
+•	Network Address: http://tika-server:9998
+•	Key Requirement: Must be connected to the llm-net network.
+4.0 Project Files
+The project directory (/home/eko/kiosk-llm) contains the following essential files:
+•	kiosk_app.py: The main Python application script containing all UI and business logic.
+•	Dockerfile: Defines the build instructions for the kiosk-app container image.
+•	docker-compose.yml: A Docker Compose file used to manage the lifecycle (build, start, stop) of the kiosk-app container.
+•	requirements.txt: A text file listing the specific Python libraries required by the application.
+•	.dockerignore: Specifies files and directories to exclude from the Docker build context to improve build speed and security.
+5.0 Setup & Deployment Procedure
+To deploy the system from scratch, follow these steps in order on the host machine.
+5.1 Prerequisites
+•	Docker and Docker Compose must be installed.
+•	For GPU acceleration, the NVIDIA Container Toolkit must be installed.
+•	The user running the commands must have permissions to manage Docker containers.
+5.2 Step 1: Create the Private Network
+This command only needs to be run once. If the network already exists, it will return a harmless error.
+docker network create llm-net
+content_copydownload
+Use code with caution.Bash
+5.3 Step 2: Launch Backend Services
+The llm-server and tika-server must be running and connected to the llm-net network.
+Launch Tika Server:
+docker run -d --name tika-server --network llm-net --restart unless-stopped apache/tika:latest-full
+content_copydownload
+Use code with caution.Bash
+Launch LLM Server (Example):
+Note: The user must replace the volume path and model filenames with their specific configuration.
+docker run -d --name llm-server --network llm-net --restart unless-stopped \
+  --gpus all \
+  -v /path/to/your/models:/models \
+  -p 8080:8080 \
+  llama-cpp-image:tag \
+    -m /models/your-model.gguf \
+    --host 0.0.0.0
+content_copydownload
+Use code with caution.Bash
+5.4 Step 3: Deploy the Kiosk Front-End
+Navigate to the project directory (/home/eko/kiosk-llm) and run the following command. This will build the kiosk-app image and start the container.
+docker compose up -d --build
+content_copydownload
+Use code with caution.Bash
+5.5 Step 4: Access the Application
+The application will be available in a web browser at the host machine's IP address on port 8501:
+http://<host-ip-address>:8501 (e.g., http://192.168.87.23:8501)
+6.0 Configuration
+Application behavior can be modified using environment variables set in the docker-compose.yml file.
+•	LLM_BASE_URL: The full URL to the LLM server's OpenAI-compatible endpoint. (Default: http://llm-server:8080/v1)
+•	MODEL_NAME: The model identifier sent in the API request. (Default: local-model)
+•	TIKA_URL: The full URL to the Tika server. (Default: http://tika-server:9998)
+7.0 Interface Specifications (API)
+7.1 Front-End to LLM Server
+•	Protocol: HTTP POST
+•	Endpoint: /v1/chat/completions (as specified by LLM_BASE_URL)
+•	Body Format: Standard OpenAI ChatCompletion request format. The messages payload is an array of objects, each with a role (system, user, assistant) and content.
+•	Multimodal Content: For prompts including images, the content of the user message is an array of parts, including {"type": "text", ...} and {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}.
+7.2 Front-End to Tika Server
+•	Protocol: HTTP PUT
+•	Endpoint: /tika (as specified by TIKA_URL)
+•	Body Format: The raw bytes of the uploaded document (application/octet-stream).
+•	Response Format: JSON, from which the content key is extracted.
+
