@@ -1,4 +1,3 @@
-eko@eko-MS-7D25:~/kiosk-llm$ cat kiosk_app.py
 """
 kiosk_app.py – V 11.7  (Improved UI spacing, removed file restrictions)
 
@@ -609,4 +608,3 @@ The current date and time is {current_time}."""
 
         except Exception as e:
             st.error(f"❌ LLM Error: {str(e)}")
-eko@eko-MS-7D25:~/kiosk-llm$
