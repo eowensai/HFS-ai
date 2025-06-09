@@ -207,7 +207,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-weight: 400;
     color: #666;
     letter-spacing: -1px;
-    margin-left: 2px;
+    margin-left: 3px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }}
 
@@ -493,8 +493,8 @@ with st.sidebar:
 # ──────────────────────────────────────────────────────────────────
 if not st.session_state.messages:
     st.markdown(
-        """<div class='welcome-text'>
-            <div style='font-size: 1.5em; font-weight: 600; margin: 0;'>Welcome to <span class='hfs'>HFS</span><span class='ai'>-ai</span></div>
+        """<div class='welcome-text' style='font-size: 2.2em; font-weight: 500;'>
+        Welcome to <span class='hfs'>HFS</span><span class='ai'>-ai</span>
         </div>""",
         unsafe_allow_html=True
     )
