@@ -1,0 +1,101 @@
+System Documentation: Automated Apache Tika Server Setup in WSL
+1. Objective
+This document outlines the procedure for configuring a persistent Apache Tika server on a WSL2 instance running Ubuntu 24.04. The final state is a Tika server that starts automatically on WSL launch, managed by the systemd init system for maximum reliability.
+2. Prerequisites
+A WSL2 instance with Ubuntu 24.04 (or similar modern Debian/Ubuntu).
+The user has sudo (administrator) privileges.
+docker.io has been installed via sudo apt-get install docker.io.
+3. Configuration Steps
+Step 3.1: Enable systemd in WSL
+The systemd init system is required to manage services at boot. It is not enabled by default in WSL.
+Create the WSL configuration file to enable systemd on boot. This command overwrites or creates the file.
+sudo tee /etc/wsl.conf <<EOF
+[boot]
+systemd = true
+EOF
+Use code with caution.
+Bash
+Fully shut down WSL for the change to take effect. This command must be run from PowerShell or CMD.
+wsl --shutdown
+Use code with caution.
+Powershell
+Step 3.2: Configure and Enable the Docker Service
+Ensure the Docker daemon is configured correctly and enabled to start on boot. A common issue is a conflict between Docker's daemon.json file and the systemd service configuration.
+Fix daemon.json configuration. The hosts key conflicts with systemd. This command overwrites /etc/docker/daemon.json, removing the hosts key while preserving other settings.
+sudo tee /etc/docker/daemon.json <<EOF
+{
+  "iptables": false,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+Use code with caution.
+Bash
+Reload the systemd configuration to recognize the changes.
+sudo systemctl daemon-reload
+Use code with caution.
+Bash
+Enable the Docker service to ensure it starts automatically on every WSL launch.
+sudo systemctl enable docker.service
+Use code with caution.
+Bash
+Step 3.3: Create the Tika systemd Service
+Instead of relying on Docker's --restart flag, we create a dedicated systemd service to manage the Tika container. This provides superior dependency management and ensures Tika only starts after Docker is fully running.
+Create a new service file for Tika using a text editor like nano.
+sudo nano /etc/systemd/system/tika.service
+Use code with caution.
+Bash
+Add the following service definition to the file. This configuration defines how to start, stop, and manage the Tika container.
+[Unit]
+Description=Apache Tika Server Container
+# This service requires Docker to be running and starts after it.
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+# Before starting, ensure no old container with the same name exists.
+# The '-' prefix means the command can fail without stopping the service.
+ExecStartPre=-/usr/bin/docker stop tika-server
+ExecStartPre=-/usr/bin/docker rm tika-server
+# The main command to start the Tika container.
+# Note the absence of the '-d' (detach) flag; systemd handles backgrounding.
+ExecStart=/usr/bin/docker run --name tika-server -p 9998:9998 --memory=2g --cpus=1 apache/tika:latest-full
+# How to gracefully stop the container.
+ExecStop=/usr/bin/docker stop tika-server
+
+[Install]
+# Hooks the service into the standard boot-up target.
+WantedBy=multi-user.target
+Use code with caution.
+Ini
+Save the file and exit the editor (Ctrl+X, Y, Enter).
+Enable the new Tika service so it will start on boot.
+sudo systemctl enable tika.service
+Use code with caution.
+Bash
+4. Verification and Usage
+Start the services for the current session (this happens automatically on future launches).
+sudo systemctl start docker.service
+sudo systemctl start tika.service
+Use code with caution.
+Bash
+Verify the services are running and enabled.
+# Check Docker status
+sudo systemctl status docker.service
+
+# Check Tika status
+sudo systemctl status tika.service
+Use code with caution.
+Bash
+Both should show active (running) in green text.
+Confirm the Tika container is running using the docker command.
+docker ps
+Use code with caution.
+Bash
+You should see the tika-server container listed.
+Final Test. Perform another wsl --shutdown from PowerShell, then relaunch your WSL instance. Run docker ps immediately to confirm the tika-server container started automatically.
+The Tika server is now fully automated and available at http://localhost:9998 on your local machine.
