@@ -1,4 +1,4 @@
-# kiosk_app.py – V12.7
+# kiosk_app.py – V12.8
 #
 # TABLE OF CONTENTS:
 # 1.0 – IMPORTS AND DEPENDENCIES
@@ -11,7 +11,8 @@
 # 5.0 – SESSION STATE MANAGEMENT
 # 6.0 – HELPER FUNCTIONS
 #    6.1 – Backend Health Check
-#    6.2 – Content Preview
+#    6.2 – Human-Readable Timestamp
+#    6.3 – Content Preview
 # 7.0 – SIDEBAR INTERFACE
 #    7.1 – Logo Display
 #    7.2 – Status Indicators
@@ -26,7 +27,7 @@
 # 9.0 – NAVIGATION CONTROLS
 
 """
-kiosk_app.py v12.7 – HFS AI Assistant
+kiosk_app.py v12.8 – HFS AI Assistant
 
 A Streamlit-based chat interface that:
   • Connects to a local LLM backend via OpenAI-compatible API
@@ -71,7 +72,7 @@ st.set_page_config(
 # ══════════════════════════════════════════════════════════════════
 
 # 2.1 – System Configuration
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm-server:8080/v1")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://192.168.87.64:11434/v1")
 MODEL_NAME   = os.getenv("LLM_MODEL_NAME", "local-model")
 TIKA_URL     = os.getenv("TIKA_URL", "http://tika-server:9998")
 TIMEZONE     = pytz.timezone("America/Los_Angeles")
@@ -125,9 +126,11 @@ rerun = st.rerun
 # ══════════════════════════════════════════════════════════════════
 # 6.0 – HELPER FUNCTIONS
 # ══════════════════════════════════════════════════════════════════
+
+# 6.1 – Backend Health Check
 def backend_up() -> bool:
     base = LLM_BASE_URL.split("/v1")[0]
-    for ep in ("/healthz", "/health"):
+    for ep in ("", "/api/tags", "/v1/models"):
         try:
             if requests.get(base + ep, timeout=2).ok:
                 return True
@@ -135,6 +138,16 @@ def backend_up() -> bool:
             pass
     return False
 
+# 6.2 – Human-Readable Timestamp
+def human_timestamp(tz) -> str:
+    """Return '1:29 PM on Saturday, June 14 2025' in the given timezone."""
+    now = datetime.now(tz)
+    fmt = "%-I:%M %p on %A, %B %-d, %Y"
+    if os.name == "nt":                         # Windows uses %# for no-padding
+        fmt = fmt.replace("%-I", "%#I").replace("%-d", "%#d")
+    return now.strftime(fmt)
+
+# 6.3 – Content Preview
 def preview_text(parts):
     for p in reversed(parts):
         if isinstance(p, dict) and p.get("type") == "text":
@@ -250,14 +263,19 @@ if prompt := st.chat_input("Ask me anything…"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    now = datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S PST")
+    now_iso   = datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S %Z")
+    now_human = human_timestamp(TIMEZONE)
     system_prompt = (
-        "You are HFS-ai, an AI assistant. You are a general-purpose service and should be helpful, clear, and direct.\n"
-        "- Your knowledge is general; you do not have specific information about University of Washington departments, housing, dining, schedules, or events unless it is provided in an attached file.\n"
-        "- Base your responses only on the information you were trained on or the context provided in the user's query and attached files/images.\n"
-        "- Do not speculate, invent details, or create narratives.\n"
+        "You are HFS-ai, an AI assistant. You are a general-purpose service "
+        "and should be helpful, clear, and direct.\n"
+        "- Your knowledge is general; you do not have specific information "
+        "about University of Washington departments, housing, dining, schedules, "
+        "or events unless it is provided in an attached file.\n"
+        "- Base your responses only on the information you were trained on or "
+        "the context provided in the user's query and attached files/images.\n"
+        "- Do not speculate, invent details, or create narratives. Offer follow-ons when warranted\n"
         "- Maintain a professional, neutral tone.\n"
-        f"The current date and time is {now}."
+        f"The current date and time is {now_human} ({now_iso})."
     )
 
     msgs = [{"role": "system", "content": system_prompt}, *st.session_state.messages]
