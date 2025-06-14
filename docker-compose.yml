@@ -10,8 +10,8 @@ services:
     networks:
       - llm-net
     environment:
-      - LLM_MODEL_NAME=HFS-ai
-      - LLM_BASE_URL=http://llm-server:8080/v1
+      - LLM_MODEL_NAME=g27:latest
+      - LLM_BASE_URL=http://192.168.87.64:11434/v1
       - TIKA_URL=http://tika-server:9998
       - TIKA_CLIENT_ONLY=true
 
