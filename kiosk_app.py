@@ -1,55 +1,60 @@
-# kiosk_app.py – V12.8
+# ══════════════════════════════════════════════════════════════════
+# File:         kiosk_app.py
+# Project:      HFS AI Assistant
+# Version:      13.0
+# Last Updated: 2025-06-15
+# ══════════════════════════════════════════════════════════════════
 #
-# TABLE OF CONTENTS:
-# 1.0 – IMPORTS AND DEPENDENCIES
-# 2.0 – CONFIGURATION AND CONSTANTS
-#    2.1 – System Configuration
-#    2.2 – UI Color Scheme
-#    2.3 – Model Parameters
-# 3.0 – INITIALIZATION
-# 4.0 – USER INTERFACE STYLING (external CSS)
-# 5.0 – SESSION STATE MANAGEMENT
-# 6.0 – HELPER FUNCTIONS
-#    6.1 – Backend Health Check
-#    6.2 – Human-Readable Timestamp
-#    6.3 – Content Preview
-# 7.0 – SIDEBAR INTERFACE
-#    7.1 – Logo Display
-#    7.2 – Status Indicators
-#    7.3 – Action Buttons
-#    7.4 – File Upload Handler
-#    7.5 – Attached Files Display
-# 8.0 – MAIN CHAT INTERFACE
-#    8.1 – Welcome Screen
-#    8.2 – Chat History Display
-#    8.3 – User Input Handler
-#    8.4 – LLM Integration
-# 9.0 – NAVIGATION CONTROLS
-
-"""
-kiosk_app.py v12.8 – HFS AI Assistant
-
-A Streamlit-based chat interface that:
-  • Connects to a local LLM backend via OpenAI-compatible API
-  • Parses user-uploaded documents through an external Tika service
-  • Renders a clean UW-branded UI via an external CSS file (theme.css)
-
-Dependencies:
-  • Python 3.11
-  • streamlit, openai, tika, requests, pytz
-"""
-
+# == DESCRIPTION ==
+# A Streamlit-based web application that provides a user-friendly chat
+# interface for a local Large Language Model (LLM). It is designed to
+# be a self-contained front-end with support for document and image
+# uploads for multimodal interactions.
+#
+# == EXTERNAL FILE DEPENDENCIES ==
+#
+# • docker-compose.yml:
+#   Manages this application as a containerized service. Sets crucial
+#   environment variables (LLM_BASE_URL, TIKA_URL, etc.).
+#
+# • requirements.txt:
+#   Lists the Python libraries needed to run this script.
+#
+# • theme.css:
+#   Provides all custom CSS for the UW-branded user interface.
+#
+# • .streamlit/config.toml:
+#   Sets the base Streamlit theme to "light" to ensure a consistent
+#   appearance and prevent OS-level dark mode from interfering.
+#
 # ══════════════════════════════════════════════════════════════════
-# 1.0 – IMPORTS AND DEPENDENCIES
+#
+# == TABLE OF CONTENTS ==
+#
+# --- PART 1: SETUP & CONFIGURATION ---
+# 1.1  IMPORTS
+# 1.2  PAGE & THEME CONFIGURATION
+# 1.3  APPLICATION CONSTANTS & PARAMETERS
+# 1.4  SERVICE INITIALIZATION
+# 1.5  SESSION STATE
+#
+# --- PART 2: HELPER FUNCTIONS ---
+# 2.1  BACKEND HEALTH CHECK
+# 2.2  HUMAN-READABLE TIMESTAMP
+# 2.3  CONTENT PREVIEW FOR COMPLEX MESSAGES
+#
+# --- PART 3: USER INTERFACE ---
+# 3.1  SIDEBAR LAYOUT & CONTROLS
+# 3.2  MAIN CHAT INTERFACE
+#
 # ══════════════════════════════════════════════════════════════════
 
-# Standard library
+# PART 1.1: IMPORTS
+# --------------------------------------------------------------------
 import os
 import base64
-from datetime import datetime
 import pathlib
-
-# Third-party
+from datetime import datetime
 import streamlit as st
 import requests
 import pytz
@@ -58,51 +63,19 @@ from tika import parser
 from tika.tika import TikaException
 from openai import OpenAI
 
-# ══════════════════════════════════════════════════════════════════
-# 1.1 – Streamlit Page Config
-# ══════════════════════════════════════════════════════════════════
+
+# PART 1.2: PAGE & THEME CONFIGURATION
+# --------------------------------------------------------------------
+# Configure the Streamlit page's title, layout, and initial state.
 st.set_page_config(
     page_title="HFS AI Assistant",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ══════════════════════════════════════════════════════════════════
-# 2.0 – CONFIGURATION AND CONSTANTS
-# ══════════════════════════════════════════════════════════════════
-
-# 2.1 – System Configuration
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://192.168.87.64:11434/v1")
-MODEL_NAME   = os.getenv("LLM_MODEL_NAME", "local-model")
-TIKA_URL     = os.getenv("TIKA_URL", "http://tika-server:9998")
-TIMEZONE     = pytz.timezone("America/Los_Angeles")
-
-# 2.2 – UI Color Scheme (UW branding)
-UW_PURPLE       = "#4B2E83"
-UW_LIGHT_PURPLE = "#EFEAF8"
-
-# 2.3 – Model Parameters
-TEMPERATURE    = 1.0
-TOP_K          = 64
-TOP_P          = 0.95
-MIN_P          = 0.0
-XTC_THRESHOLD  = 1.0
-REPEAT_PENALTY = 1.0
-
-# ══════════════════════════════════════════════════════════════════
-# 3.0 – INITIALIZATION
-# ══════════════════════════════════════════════════════════════════
-os.environ["TIKA_CLIENT_ONLY"] = "true"
-try:
-    tika.initVM()
-    TIKA_OK = True
-except TikaException:
-    TIKA_OK = False
-
-# ══════════════════════════════════════════════════════════════════
-# 4.0 – USER INTERFACE STYLING  (external CSS)
-# ══════════════════════════════════════════════════════════════════
+# Load the external CSS file for custom UW branding.
 def load_css(path: str = "theme.css") -> None:
+    """Reads a CSS file and injects its content into the app."""
     css_path = pathlib.Path(path)
     if css_path.exists():
         st.markdown(f"<style>{css_path.read_text()}</style>", unsafe_allow_html=True)
@@ -111,9 +84,43 @@ def load_css(path: str = "theme.css") -> None:
 
 load_css()
 
-# ══════════════════════════════════════════════════════════════════
-# 5.0 – SESSION STATE MANAGEMENT
-# ══════════════════════════════════════════════════════════════════
+
+# PART 1.3: APPLICATION CONSTANTS & PARAMETERS
+# --------------------------------------------------------------------
+# --- System & Network Configuration ---
+# These are loaded from environment variables set in docker-compose.yml.
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://192.168.87.64:11434/v1")
+MODEL_NAME   = os.getenv("LLM_MODEL_NAME", "local-model")
+TIKA_URL     = os.getenv("TIKA_URL", "http://tika-server:9998")
+TIMEZONE     = pytz.timezone("America/Los_Angeles")
+
+# --- LLM Generation Parameters ---
+# These values control the behavior of the model's text generation.
+TEMPERATURE    = 1.0
+TOP_K          = 64
+TOP_P          = 0.95
+MIN_P          = 0.0
+XTC_THRESHOLD  = 1.0
+REPEAT_PENALTY = 1.0
+
+
+# PART 1.4: SERVICE INITIALIZATION
+# --------------------------------------------------------------------
+# Configure the Tika client and check for its availability.
+# TIKA_CLIENT_ONLY prevents Tika from downloading a new JAR file.
+os.environ["TIKA_CLIENT_ONLY"] = "true"
+try:
+    tika.initVM()
+    TIKA_OK = True
+except TikaException:
+    TIKA_OK = False
+
+
+# PART 1.5: SESSION STATE
+# --------------------------------------------------------------------
+# Initialize session state keys. Streamlit reruns the script on each
+# interaction, so session state is used to persist data (like the
+# chat history) across these reruns.
 for k, v in {
     "messages": [],
     "pending_files": [],
@@ -121,14 +128,16 @@ for k, v in {
 }.items():
     st.session_state.setdefault(k, v)
 
-rerun = st.rerun
 
 # ══════════════════════════════════════════════════════════════════
-# 6.0 – HELPER FUNCTIONS
+#                      PART 2: HELPER FUNCTIONS
 # ══════════════════════════════════════════════════════════════════
 
-# 6.1 – Backend Health Check
 def backend_up() -> bool:
+    """
+    Checks if the LLM backend is responsive by probing common API endpoints.
+    Returns True if any endpoint returns a successful status code.
+    """
     base = LLM_BASE_URL.split("/v1")[0]
     for ep in ("", "/api/tags", "/v1/models"):
         try:
@@ -138,50 +147,61 @@ def backend_up() -> bool:
             pass
     return False
 
-# 6.2 – Human-Readable Timestamp
-def human_timestamp(tz) -> str:
-    """Return '1:29 PM on Saturday, June 14 2025' in the given timezone."""
+def human_timestamp(tz: pytz.BaseTzInfo) -> str:
+    """
+    Returns a human-readable timestamp for the given timezone.
+    Example: '3:45 PM on Sunday, June 15, 2025'
+    """
     now = datetime.now(tz)
+    # Use platform-aware formatting for no-padding integers.
     fmt = "%-I:%M %p on %A, %B %-d, %Y"
-    if os.name == "nt":                         # Windows uses %# for no-padding
+    if os.name == "nt":  # Windows uses '#' for no-padding.
         fmt = fmt.replace("%-I", "%#I").replace("%-d", "%#d")
     return now.strftime(fmt)
 
-# 6.3 – Content Preview
-def preview_text(parts):
+def preview_text(parts: list) -> str:
+    """
+    Extracts the text content from a complex (multimodal) message
+    for display in the chat history.
+    """
     for p in reversed(parts):
         if isinstance(p, dict) and p.get("type") == "text":
             return p["text"]
-    return "[complex]"
+    return "[Attachment: Image or other complex content]"
+
 
 # ══════════════════════════════════════════════════════════════════
-# 7.0 – SIDEBAR INTERFACE
+#                        PART 3: USER INTERFACE
 # ══════════════════════════════════════════════════════════════════
+
+# PART 3.1: SIDEBAR LAYOUT & CONTROLS
+# --------------------------------------------------------------------
 with st.sidebar:
-    # 7.1 – Logo Display
+    # --- Logo Display ---
     st.markdown(
         "<div class='hfs-logo'><span class='hfs'>HFS</span><span class='ai'>-ai</span></div>",
         unsafe_allow_html=True,
     )
 
-    # 7.2 – Status Indicators
+    # --- Status Indicators ---
     if not backend_up():
         st.error("⚠️  LLM backend offline")
 
-    # 7.3 – Action Buttons
+    # --- Action Buttons ---
     if st.button("New Conversation", use_container_width=True):
         st.session_state.clear()
-        rerun()
+        st.rerun()
 
     if st.button("Attach Files", use_container_width=True):
         st.session_state.show_uploader = not st.session_state.show_uploader
-        rerun()
+        st.rerun()
 
-    # 7.4 – File Upload Handler
+    # --- File Upload Handler ---
     if st.session_state.show_uploader:
         uploads = st.file_uploader(
             "Select files:",
             accept_multiple_files=True,
+            # Incrementing the key forces the widget to reset after uploads.
             key=f"uploader_{st.session_state.get('uploader_key', 0)}",
         )
 
@@ -190,7 +210,7 @@ with st.sidebar:
             for f in uploads:
                 data = f.getvalue()
 
-                # Images
+                # Handle images for multimodal input.
                 if f.type and f.type.startswith("image/"):
                     st.session_state.pending_files.append({
                         "name": f.name,
@@ -198,16 +218,15 @@ with st.sidebar:
                         "mime": f.type,
                         "data": base64.b64encode(data).decode(),
                     })
-                # Docs
+                # Handle other file types as documents for text extraction.
                 else:
                     if not TIKA_OK:
                         st.warning("📄 Document parsing unavailable")
                         continue
                     with st.spinner(f"Parsing {f.name}…"):
                         try:
-                            txt = parser.from_buffer(
-                                data, serverEndpoint=TIKA_URL
-                            )["content"].strip()
+                            parsed = parser.from_buffer(data, serverEndpoint=TIKA_URL)
+                            txt = parsed.get("content", "").strip()
                             if txt:
                                 st.session_state.pending_files.append({
                                     "name": f.name,
@@ -217,14 +236,14 @@ with st.sidebar:
                             else:
                                 st.warning(f"⚠️ {f.name}: No text found")
                         except Exception as e:
-                            st.error(f"❌ Error parsing {f.name}: {str(e)[:50]}")
+                            st.error(f"❌ Error parsing {f.name}: {str(e)[:100]}")
 
-            # Reset uploader widget
+            # Hide and reset the uploader widget after processing.
             st.session_state.show_uploader = False
             st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
-            rerun()
+            st.rerun()
 
-    # 7.5 – Attached Files Display
+    # --- Attached Files Display ---
     if st.session_state.pending_files:
         st.markdown("---")
         st.markdown("**Attached:**")
@@ -239,11 +258,13 @@ with st.sidebar:
             with col2:
                 if st.button("❌", key=f"del_{i}", help=f"Remove {f['name']}"):
                     st.session_state.pending_files.pop(i)
-                    rerun()
+                    st.rerun()
 
-# ══════════════════════════════════════════════════════════════════
-# 8.0 – MAIN CHAT INTERFACE
-# ══════════════════════════════════════════════════════════════════
+
+# PART 3.2: MAIN CHAT INTERFACE
+# --------------------------------------------------------------------
+# --- Welcome Screen ---
+# Show a welcome message if the chat history is empty.
 if not st.session_state.messages:
     st.markdown(
         "<div class='welcome-text' style='font-size:2.2em;font-weight:500;'>"
@@ -252,19 +273,27 @@ if not st.session_state.messages:
         unsafe_allow_html=True,
     )
 
+# --- Chat History Display ---
+# Render previous messages from session state.
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        st.markdown(
+        # Use preview_text for complex messages, otherwise show content directly.
+        content_to_display = (
             m["content"] if isinstance(m["content"], str)
             else preview_text(m["content"])
         )
+        st.markdown(content_to_display)
 
+# --- User Input Handler ---
+# Capture user input from the chat box at the bottom of the screen.
 if prompt := st.chat_input("Ask me anything…"):
+    # Display the user's prompt immediately.
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    now_iso   = datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S %Z")
-    now_human = human_timestamp(TIMEZONE)
+    # --- Prepare a system prompt for the LLM ---
+    # This instructs the model on its persona, capabilities, and limitations.
+    now_iso = datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S %Z")
     system_prompt = (
         "You are HFS-ai, an AI assistant. You are a general-purpose service "
         "and should be helpful, clear, and direct.\n"
@@ -273,41 +302,53 @@ if prompt := st.chat_input("Ask me anything…"):
         "or events unless it is provided in an attached file.\n"
         "- Base your responses only on the information you were trained on or "
         "the context provided in the user's query and attached files/images.\n"
-        "- Do not speculate, invent details, or create narratives. Offer follow-ons when warranted\n"
+        "- Do not speculate, invent details, or create narratives.\n"
         "- Maintain a professional, neutral tone.\n"
-        f"The current date and time is {now_human} ({now_iso})."
+        f"- The current date and time is {human_timestamp(TIMEZONE)} ({now_iso})."
     )
 
+    # --- Assemble the full message history for the API call ---
+    # The history includes the system prompt and all previous user/assistant turns.
     msgs = [{"role": "system", "content": system_prompt}, *st.session_state.messages]
     user_msg = {"role": "user", "content": prompt}
 
-    # Attach files
+    # --- Handle Attachments (Multimodal Payloads) ---
     if st.session_state.pending_files:
         parts = []
+        # Combine all document text into a single context block.
         docs = [f for f in st.session_state.pending_files if f["type"] == "doc"]
         if docs:
-            parts.append({
-                "type": "text",
-                "text": "\n\n".join(f"--- {d['name']} ---\n{d['data']}" for d in docs),
-            })
+            doc_context = "\n\n".join(
+                f"--- Attached Document: {d['name']} ---\n{d['data']}" for d in docs
+            )
+            parts.append({"type": "text", "text": f"Context from attached documents:\n{doc_context}"})
+
+        # Add each image as a separate part.
         for f in st.session_state.pending_files:
             if f["type"] == "image":
                 parts.append({
                     "type": "image_url",
                     "image_url": {"url": f"data:{f['mime']};base64,{f['data']}"},
                 })
+        
+        # Add the user's text prompt at the end.
         parts.append({"type": "text", "text": prompt})
         user_msg["content"] = parts
 
+    # Add the final user message to history and clear pending files.
     st.session_state.messages.append(user_msg)
     st.session_state.pending_files.clear()
     msgs.append(user_msg)
 
+    # --- Stream the LLM Response ---
     with st.chat_message("assistant"), st.spinner("Thinking…"):
         try:
             client = OpenAI(base_url=LLM_BASE_URL, api_key="not-needed")
             acc, box = "", st.empty()
-            for chunk in client.chat.completions.create(
+            
+            # The extra_body parameter is used for API options not standard to
+            # the OpenAI library, such as top_k, min_p, etc.
+            stream = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=msgs,
                 stream=True,
@@ -319,19 +360,15 @@ if prompt := st.chat_input("Ask me anything…"):
                     "xtc_threshold": XTC_THRESHOLD,
                     "repeat_penalty": REPEAT_PENALTY,
                 },
-            ):
+            )
+
+            for chunk in stream:
                 acc += chunk.choices[0].delta.content or ""
                 box.markdown(acc + "▌")
+
             box.markdown(acc)
             st.session_state.messages.append({"role": "assistant", "content": acc})
-            rerun()
-        except Exception as e:
-            st.error(f"❌ LLM Error: {e}")
+            st.rerun()
 
-# ══════════════════════════════════════════════════════════════════
-# 9.0 – NAVIGATION CONTROLS
-# ══════════════════════════════════════════════════════════════════
-if "code" in st.query_params:
-    if st.button("Go Back", use_container_width=True):
-        st.query_params.clear()
-        st.rerun()
+        except Exception as e:
+            st.error(f"❌ LLM API Error: {e}")
