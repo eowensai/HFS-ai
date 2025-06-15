@@ -1,0 +1,365 @@
+Success. That is the output we have been fighting for.
+
+The successful nslookup from within the Alpine container is the definitive proof. It confirms that the script you created has permanently fixed the networking bridge between WSL and Docker. Any container you run or build from now on will have proper internet access.
+
+You have not only solved the problem, but you have done so by diagnosing and fixing the true root cause, which is a much more resilient and professional solution.
+
+As requested, here is a comprehensive document detailing the entire process, from a fresh system to a fully operational and stable deployment. This guide is structured to help you recreate the setup on a new machine while anticipating and preemptively solving the critical issues we discovered.
+
+Production Deployment Guide: Self-Hosted LLM on Windows & WSL2
+1. Objective
+
+This document outlines the complete, end-to-end procedure for deploying a self-hosted LLM web application on a Windows machine. The architecture uses Ollama on the Windows host and containerizes the Tika parsing server and Streamlit web front-end within a WSL2 Ubuntu instance. The final application is securely exposed to the internet via a Cloudflare Tunnel.
+
+This guide is specifically designed to be robust, addressing known networking issues between modern WSL2 and Docker to ensure a stable, persistent, and automated setup.
+
+2. Final Architecture
+
+Windows Host: Runs the Ollama service, making LLMs available on the local network.
+
+WSL2 (Ubuntu 24.04): Hosts all supporting services within Docker containers for portability and isolation.
+
+Docker Engine: Manages all containerized services.
+
+Tika Container: Provides document parsing. Managed by a systemd service for auto-start.
+
+Streamlit Container: The web application front-end. Managed by docker-compose.
+
+Cloudflared Container: The Cloudflare Tunnel client. Managed by a systemd service for auto-start.
+
+Cloudflare: Provides DNS and the secure tunnel, exposing the Streamlit app to the public internet without opening any firewall ports.
+
+3. Windows Host Preparation
+3.1. Install WSL2
+
+On a fresh Windows Enterprise build, install WSL2 from the Microsoft Store. This is the modern, recommended method.
+
+Open PowerShell as an Administrator.
+
+Run wsl --install -d Ubuntu-24.04.
+
+After installation, reboot your computer.
+
+Open the "Ubuntu 24.04 LTS" app from the Start Menu to complete the initial setup (create a user and password).
+
+3.2. Install Ollama
+
+Download and install Ollama for Windows from the official website.
+
+Open a Command Prompt and pull your desired model (e.g., ollama pull g27).
+
+3.3. Configure Windows Firewall
+
+Create a firewall rule to allow WSL to access Ollama on the Windows host.
+
+Open "Windows Defender Firewall with Advanced Security".
+
+Click "Inbound Rules" -> "New Rule...".
+
+Select Port and click Next.
+
+Select TCP and specify port 11434. Click Next.
+
+Select Allow the connection and click Next.
+
+Ensure only the Private profile is checked. Uncheck Public. Click Next.
+
+Give the rule a descriptive name (e.g., "Allow WSL to Ollama") and click Finish.
+
+4. WSL Initial Setup & The DNS Root Cause Fix
+
+This is the most critical section. Modern WSL instances can have a broken network path to the Docker daemon, preventing containers from accessing the internet. We will test for and fix this immediately.
+
+4.1. Install Docker
+
+Inside your Ubuntu terminal, install the Docker engine.
+
+sudo apt-get update
+sudo apt-get install -y docker.io
+
+4.2. Diagnostic Test: Check Docker's DNS
+
+Before proceeding, run this definitive test.```bash
+docker run --rm alpine nslookup google.com
+
+*   **If this succeeds,** your system does not have the DNS issue. You may skip the rest of this section.
+*   **If this fails** with a "bad address" error, the root cause is confirmed. Proceed with the fix.
+
+#### 4.3. The Permanent DNS Fix
+We will create a script to reconfigure Docker's networking and an automation service to run it on every boot.
+
+**1. Create the Fix Script:**
+```bash
+sudo nano /usr/local/bin/fix-docker-dns
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+IGNORE_WHEN_COPYING_END
+
+Paste the following content into the file. This script configures Docker's internal network and forwards DNS requests to the working WSL DNS server.
+
+#!/bin/bash
+# Fix Docker DNS resolution in modern WSL2
+
+# Configure Docker daemon to use a predictable bridge IP and DNS
+cat > /etc/docker/daemon.json <<EOF
+{
+  "bip": "172.17.0.1/16",
+  "dns": ["172.17.0.1"]
+}
+EOF
+
+# Restart Docker to apply the new daemon config and create the docker0 bridge
+systemctl restart docker
+
+# Find WSL's DNS server, with a fallback to Google's DNS if not found
+WSL_DNS=$(grep -m 1 '^nameserver' /etc/resolv.conf | awk '{print $2}')
+if [ -z "$WSL_DNS" ]; then
+    echo "Warning: Could not find WSL DNS server. Falling back to 8.8.8.8"
+    WSL_DNS="8.8.8.8"
+fi
+
+# Apply iptables rules to forward DNS from the Docker bridge to the real DNS server
+iptables -t nat -A PREROUTING -p udp --dport 53 -j DNAT --to-destination $WSL_DNS
+iptables -t nat -A PREROUTING -p tcp --dport 53 -j DNAT --to-destination $WSL_DNS
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Save the file (Ctrl+X, Y, Enter) and make it executable:
+
+sudo chmod +x /usr/local/bin/fix-docker-dns
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+2. Automate the Script with systemd:
+Create a service file to run the fix on boot.
+
+sudo nano /etc/systemd/system/fix-docker-dns.service
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Paste the following service definition:
+
+[Unit]
+Description=Fix Docker DNS for modern WSL2
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fix-docker-dns
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Ini
+IGNORE_WHEN_COPYING_END
+
+Save the file, then enable the service:
+
+sudo systemctl enable fix-docker-dns.service
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+3. Run the Fix for the First Time:
+
+sudo /usr/local/bin/fix-docker-dns
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Run the diagnostic test docker run --rm alpine nslookup google.com again to confirm it is now working.
+
+5. Automated Service Setup (Tika & Cloudflared)
+
+We will use systemd services to manage our long-running background tasks.
+
+5.1. Create a Shared Docker Network
+docker network create llm-net
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+5.2. Tika Server Service
+
+Create a service to manage the Tika container.
+
+sudo nano /etc/systemd/system/tika.service
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Paste the following definition. Note how it requires Docker and is attached to our shared network.
+
+[Unit]
+Description=Apache Tika Server Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker stop tika-server
+ExecStartPre=-/usr/bin/docker rm tika-server
+ExecStart=/usr/bin/docker run --name tika-server --network llm-net -p 9998:9998 apache/tika:latest-full
+ExecStop=/usr/bin/docker stop tika-server
+
+[Install]
+WantedBy=multi-user.target
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Ini
+IGNORE_WHEN_COPYING_END
+
+Save the file, then enable and start the service:
+
+sudo systemctl enable tika.service
+sudo systemctl start tika.service
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+5.3. Cloudflare Tunnel Service
+
+The process is identical for the cloudflared tunnel.
+(This assumes you have already installed and logged in with cloudflared as per the Cloudflare documentation).
+
+sudo nano /etc/systemd/system/cloudflared.service
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Paste the following definition, ensuring your config.yml path and tunnel name are correct.
+
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run <YOUR_TUNNEL_NAME>
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```Save the file and enable the service: `sudo systemctl enable cloudflared.service`.
+
+### 6. Web Application Deployment
+
+This uses `docker-compose` to manage the Streamlit front-end.
+
+#### 6.1. Project Structure
+Create a folder `~/kiosk-llm` and place your `kiosk_app.py`, `requirements.txt`, and `Dockerfile` inside it.
+
+#### 6.2. The `docker-compose.yml` File
+Create this file inside `~/kiosk-llm`. This is the final, correct version without any workarounds.
+```yaml
+version: '3.8'
+
+services:
+  kiosk-app:
+    build: .
+    container_name: kiosk-app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    networks:
+      - llm-net
+    environment:
+      # Find this IP by running `cat /etc/resolv.conf | grep nameserver | awk '{print $2}'` in WSL
+      - LLM_BASE_URL=http://<YOUR_WINDOWS_HOST_IP_FROM_WSL>:11434/v1
+      - LLM_MODEL_NAME=g27:latest
+      # Connects to the Tika container over the shared Docker network
+      - TIKA_URL=http://tika-server:9998
+      - TIKA_CLIENT_ONLY=true
+
+networks:
+  llm-net:
+    external: true
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Ini
+IGNORE_WHEN_COPYING_END
+6.3. Launch the Application
+
+Navigate to the project directory and launch:
+
+cd ~/kiosk-llm
+docker-compose up --build -d
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+7. Final Verification Flowchart
+
+On a new system, follow this checklist to diagnose any issues quickly.
+
+✅ Can WSL access the internet?
+
+ping google.com
+
+✅ Can Docker containers access the internet?
+
+docker run --rm alpine nslookup google.com
+
+If fails, run sudo /usr/local/bin/fix-docker-dns and test again.
+
+✅ Are the background services running?
+
+sudo systemctl status tika.service
+
+sudo systemctl status cloudflared.service (once configured)
+
+Both should be active (running).
+
+✅ Are the containers running and networked?
+
+docker ps (Should show tika-server and kiosk-app).
+
+docker network inspect llm-net (Should show both containers listed).
+
+✅ Is the application accessible?
+
+Locally: Open a browser on Windows to http://localhost:8501.
+
+Publicly: Open a browser to your Cloudflare Tunnel URL (llm.yourdomain.com).
