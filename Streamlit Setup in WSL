@@ -380,3 +380,48 @@ If kiosk-app fails to start: Check its logs with docker logs kiosk-app.
 Is the app working?
 
 Access http://localhost:8501 in your Windows browser. If you see "LLM backend offline," it confirms the app can't reach the LLM_BASE_URL defined in docker-compose.yml. Double-check the IP address.
+
+System Documentation Addendum: Public Access via Cloudflare Tunnel
+8. Objective
+This section details the configuration of a secure Cloudflare Tunnel to expose the self-hosted Streamlit application to the public internet. This method provides robust, encrypted, and authenticated access without requiring any inbound firewall rules or port forwarding on the host machine's network.
+9. Component Overview
+cloudflared Client: The tunnel software running as a systemd service inside the WSL2 Ubuntu instance.
+Cloudflare Access: The Zero Trust policy that requires email-based authentication before allowing any user to reach the application.
+Cloudflare DNS: Manages the public DNS record (www.tunalen.com) and points it to the secure tunnel.
+10. Configuration Steps
+10.1. Tunnel Creation and Authentication
+Installation: The cloudflared client was installed in the WSL2 instance via its Debian package.
+Authentication: The client was authenticated to the Cloudflare account via cloudflared tunnel login. This generated a cert.pem file in ~/.cloudflared/, authorizing the client.
+Tunnel Creation: A persistent, named tunnel was created using the command: cloudflared tunnel create tunalen-main. This generated a unique UUID and a corresponding credential file (<UUID>.json).
+10.2. Tunnel Configuration File
+The tunnel's behavior is defined in /etc/cloudflared/config.yml. This file instructs cloudflared on how to route incoming public traffic.
+# /etc/cloudflared/config.yml
+
+# This must match the name of the tunnel created in the previous step
+tunnel: tunalen-main
+
+# Defines how incoming public traffic is routed to internal services
+ingress:
+  # Rule 1: Handles requests for the primary application domain
+  - hostname: www.tunalen.com
+    # Forwards traffic to the Streamlit container on its exposed port
+    service: http://localhost:8501
+
+  # Rule 2: A CNAME record for the root domain also points to this tunnel
+  - hostname: tunalen.com
+    service: http://localhost:8501
+
+  # Rule 3: Catch-all. Any request not matching a hostname above gets a 404 error.
+  - service: http_status:404
+Use code with caution.
+Yaml
+10.3. DNS and Service Automation
+DNS Routing: The public hostnames were linked to the tunnel using the command: cloudflared tunnel route dns tunalen-main www.tunalen.com. This automatically created the necessary CNAME records in the Cloudflare DNS dashboard. A manual CNAME record was created for the root domain (@) pointing to www.tunalen.com.
+Service Automation: The tunnel is managed by a systemd service located at /etc/systemd/system/cloudflared.service. This ensures the tunnel starts automatically when the WSL instance boots and restarts on failure.
+11. Security Configuration
+Cloudflare Access Policy: An application was created in the Cloudflare Zero Trust dashboard for www.tunalen.com. An Access Policy is enforced that requires users to authenticate with an email address from a pre-approved list before any traffic is allowed to pass through the tunnel.
+robots.txt Transform Rule: A Cloudflare Transform Rule was created to intercept any request for /robots.txt and reply directly from the Cloudflare edge with a "Disallow All" message, preventing reputable search engines from indexing the site.
+12. Verification and Maintenance
+Service Status: The tunnel's operational status can be verified with sudo systemctl status cloudflared.
+Live Logs: Real-time logs can be viewed for troubleshooting with sudo journalctl -u cloudflared -f.
+Persistence: The service runs independently of any open terminal windows and persists through reboots of the WSL instance or the Windows host machine
