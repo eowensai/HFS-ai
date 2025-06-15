@@ -1,85 +1,75 @@
-# HFS-AI Kiosk
+# HFS AI Assistant
 
-An AI-powered kiosk application for University of Washington's Housing and Food Services.
+A self-hosted, UW-branded chat interface for interacting with local Large Language Models (LLMs). This application provides a clean, professional front-end with support for document and image analysis.
 
-## Features
+*(It is highly recommended to add a screenshot of the running application here to give an immediate visual overview.)*
+`![Application Screenshot](<path-to-your-screenshot.png>)`
 
-- 🤖 AI assistant powered open weight models (currently gemma 3 12/27b it QAT gguf int4)
-- 📄 Document upload support (PDF, DOCX)
-- 🖼️ Multimodal support - Image as part of a query
-- 🎨 UW-branded interface
-- 🔒 Ephemeral - operates via a 'Kiosk mode' (minimal/locked UI)
+---
 
-## Prerequisites
+## Core Features
 
-- Docker and Docker Compose
-- Llama.cpp docker container in docker network for llm api calls
-- Tika docker container in docker network for document to text converstion
-- Ubuntu 24.04 with dedicated gpu(s)
- 
-## Setup
+* **🤖 AI Assistant:** Provides a direct, streaming chat interface with a local LLM running on [Ollama](https://ollama.com/).
+* **📄 Document Upload:** Supports text extraction from files like PDF and DOCX using Apache Tika.
+* **🖼️ Multimodal Support:** Allows images to be included as part of a query for visual analysis.
+* **🎨 UW-Branded Interface:** A clean, minimal UI with a custom University of Washington theme that is locked to light mode for consistency.
+* **🔒 Ephemeral & Secure:** Chat sessions are not stored on the server. The architecture is designed to keep all services on the local network.
 
-1. Clone this repository:
-   git clone https://github.com/YOUR_USERNAME/hfs-ai-kiosk.git
-   cd hfs-ai-kiosk
+## Architecture Overview
 
-   cd hfs-ai-kiosk
+This application uses a hybrid architecture that leverages a Windows host for the LLM and a WSL2 environment for the containerized web application.
 
-2. Start all services:
-   bashdocker-compose up -d
+* **Windows Host:**
+    * **Ollama Service:** Manages and serves the LLM.
+* **WSL2 (Ubuntu) Host:**
+    * **Docker Engine:** Manages all supporting services.
+        * **HFS-ai Kiosk (`kiosk-app`):** The Streamlit web front-end.
+        * **Apache Tika (`tika-server`):** The document parsing service.
 
-3. Wait for services to initialize (first run will download models):
-   bashdocker-compose logs -f llm-server
+## Technology Stack
 
-4. Access the kiosk at: http://localhost:8501
+* **Frontend:** Python 3.11 / Streamlit
+* **LLM Service:** Ollama
+* **Document Parsing:** Apache Tika
+* **Containerization:** Docker / Docker Compose v2
 
-Architecture
-   Streamlit: Web interface (port 8501)
-   Ollama: LLM server running Gemma 2 (port 11434)
-   Apache Tika: Document parsing (port 9998)
+---
 
-Configuration
-   Environment Variables
-      LLM_BASE_URL: URL for the LLM server (default: http://llm-server:8080/v1)
-      LLM_MODEL_NAME: Model to use (default: gemma2:9b-instruct-fp16)
-      TIKA_URL: URL for Tika server (default: http://tika:9998)
+## Quick Start Guide
 
-Model Parameters
-   The following parameters are optimized for Gemma 3:
-      Temperature: 1.0
-      Top-K: 64
-      Top-P: 0.95
-      Min-P: 0.0
-      XTC Threshold: 1.0
-      Repeat Penalty: 1.0
+This guide assumes you have already completed the full setup and environment hardening process.
 
-Development
-   To run in development mode:
-   bash 
-      # Install dependencies
-      pip install -r requirements.txt
+### Prerequisites
 
-      # Set environment variables
-      export LLM_BASE_URL=http://localhost:11434/v1
-      export TIKA_URL=http://localhost:9998
-      
-      # Run the app
-      streamlit run kiosk_app.py
+**You must first follow the complete setup instructions in the [Production Deployment Guide](./path-to-your/Production-Deployment-Guide.md).** This `README` is only for starting/stopping the application after the environment has been configured.
 
-Deployment
-   Update docker-compose.yml with production URLs
-   Consider using a reverse proxy (nginx) for HTTPS
-   Add authentication if needed
-   Monitor resource usage (especially RAM for LLM)
+### Running the Application
 
-Troubleshooting
-   LLM Backend Offline
-      Check if Ollama is running: docker ps
-      View logs: docker-compose logs llm-server
-      Ensure model is downloaded: docker exec hfs-llm-server ollama list
-   Document Parsing Issues
-      Check Tika status: curl http://localhost:9998/tika
-      View logs: docker-compose logs tika
+1.  **Start the Kiosk Service:**
+    Navigate to the project directory in your WSL terminal and run:
+    ```bash
+    # From ~/kiosk-llm
+    docker compose up -d
+    ```
+    *Note: The Tika service is managed by `systemd` and should start automatically with WSL. This command will start the `kiosk-app`.*
 
-Support
-   For issues or questions, please email eko@uw.edu 
+2.  **Access the Interface:**
+    Open a web browser on your Windows host and go to:
+    **[http://localhost:8501](http://localhost:8501)**
+
+### Stopping the Application
+
+To stop the `kiosk-app` container:
+```bash
+# From ~/kiosk-llm
+docker compose down
+
+### Configuration
+Runtime Configuration: Key settings like the LLM IP address (LLM_BASE_URL) and model name (LLM_MODEL_NAME) are managed as environment variables in the docker-compose.yml file.
+Theme & Styling: The visual theme is controlled by .streamlit/config.toml (for the base theme) and theme.css (for all specific UW branding).
+
+###Full Documentation
+For complete, end-to-end instructions on environment setup, deployment, troubleshooting, and architectural details, please see the Production Deployment Guide.
+
+###Support
+For issues or questions, please contact eko@uw.edu.
