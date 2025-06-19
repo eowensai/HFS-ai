@@ -227,7 +227,7 @@ section[data-testid="stSidebar"] {
 
 /* Equal top/bottom margins for robot logo */
 section[data-testid="stSidebar"] img:first-of-type {
-  margin-bottom: 55px; /* space above buttons */
+  margin-bottom: 50px; /* space above buttons */
 }
 
 /* ===== Utility tweaks ===== */
