@@ -224,3 +224,18 @@ section[data-testid="stSidebar"] {
   font-size: 0.95em;
   border: 1px solid #E0E0E0;
 }
+
+/* Equal top/bottom margins for robot logo */
+section[data-testid="stSidebar"] img:first-of-type {
+  margin-bottom: 55px; /* space above buttons */
+}
+
+/* ===== Utility tweaks ===== */
+
+/* Hide the entire hover-toolbar (incl. “View fullscreen” button) inside the sidebar only */
+section[data-testid="stSidebar"] [data-testid="stElementToolbar"],
+section[data-testid="stSidebar"] button[title="View fullscreen"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;   /* just in case the icon is cached */
+}
