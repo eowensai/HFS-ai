@@ -98,3 +98,43 @@
    * Back up `/opt/kiosk-llm` and your compose file.
 
 Complete those remaining steps and the production stack will auto-start and self-heal on every Windows boot.
+
+Potential Domain Join issues:
+WakeWSL task runs as SYSTEM; domain GPOs rarely delete existing SYSTEM tasks.
+
+Docker daemon in WSL is managed by systemd inside the Linux VM; unaffected.
+
+NSSM-wrapped Ollama service also runs as Local System—keeps its startup type after the join.
+
+WSL config (/etc/wsl.conf) and the Docker packages inside Ubuntu live in your ext4 VHDX, untouched by Windows domain policies.
+
+What could break:
+
+Domain Group Policy may apply stricter Windows-firewall or “Deny log on as service” rules.
+
+If a GPO disables Task Scheduler startup tasks or blocks wsl.exe, the WakeWSL trick won’t fire.
+
+A domain firewall profile might block outbound pulls (e.g., Docker Hub) on future updates.
+
+Mitigation checklist before/after the join:
+
+powershell
+Copy
+Edit
+# after joining domain and rebooting
+Get-Service OllamaService         # status should be Running
+Get-ScheduledTask WakeWSL         # State = Ready
+wsl -l -v                         # Ubuntu should show Running soon after boot
+docker ps                         # containers running inside WSL
+curl http://localhost:8501/_stcore/health
+If any of those fail, request an exception in your domain GPO for:
+
+Service: OllamaService (log on as service, allow outbound 11434)
+
+Task: WakeWSL (permit SYSTEM tasks)
+
+Program: wsl.exe (allow execution at startup)
+
+Firewall rule: keep 8501 (Streamlit) open on localhost at minimum.
+
+In most organisations the defaults leave SYSTEM services and scheduled tasks alone, so the stack should survive the domain join with no changes.
