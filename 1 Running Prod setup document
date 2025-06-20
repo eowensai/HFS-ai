@@ -1,0 +1,100 @@
+### What we have completed inside WSL (Ubuntu 24.04)
+
+1. **Enabled systemd**
+
+   ```bash
+   sudo tee /etc/wsl.conf <<'EOF'
+   [boot]
+   systemd=true
+   EOF
+   ```
+
+   Then from Windows:
+
+   ```powershell
+   wsl --shutdown
+   wsl -d Ubuntu-24.04
+   ```
+
+2. **Installed open-source Docker Engine**
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y ca-certificates curl gnupg lsb-release
+   sudo install -m 0755 -d /etc/apt/keyrings
+   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+        sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+        https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list
+   sudo apt-get update
+   sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+        docker-buildx-plugin docker-compose-plugin
+   sudo usermod -aG docker "$USER"
+   newgrp docker
+   sudo systemctl enable --now docker
+   docker run --rm hello-world    # verified daemon works
+   ```
+
+3. **Created private bridge network**
+
+   ```bash
+   docker network create llm-net
+   ```
+
+4. **Set Windows startup task to wake WSL automatically**
+   *(run in elevated Windows PowerShell)*
+
+   ```powershell
+   schtasks /Create /SC ONSTART /RU SYSTEM /TN WakeWSL ^
+            /TR "wsl -d Ubuntu-24.04 --exec /bin/true"
+   ```
+
+   This guarantees Docker (and any restart-enabled containers) start right after every reboot.
+
+---
+
+### Outstanding tasks to recreate the full kiosk stack
+
+1. **Start Apache Tika container** *(inside WSL once Docker is up)*
+
+   ```bash
+   docker run -d --name tika-server \
+     --network llm-net \
+     --restart unless-stopped \
+     apache/tika:latest-full
+   ```
+
+2. **Copy your kiosk project into WSL** (`/opt/kiosk-llm` or similar).
+
+3. **Edit `docker-compose.yml` for the kiosk**
+
+   * set `LLM_BASE_URL` to `http://host.docker.internal:11434/v1`
+   * set `TIKA_URL` to `http://tika-server:9998`
+   * ensure the kiosk service has `restart: unless-stopped`.
+
+4. **Build and run the kiosk front-end**
+
+   ```bash
+   cd /opt/kiosk-llm
+   docker compose up -d --build
+   ```
+
+5. **Install and service-wrap Ollama on Windows**
+
+   * Install Ollama, pull your model (`ollama pull g27:latest` or similar).
+   * Use NSSM (or a comparable wrapper) to register Ollama as an automatic Windows service so it listens on `http://127.0.0.1:11434` pre-login.
+
+6. **Test after a full reboot**
+
+   * Without logging in, browse to `http://localhost:8501`—Streamlit UI should load.
+   * Upload a PDF—Tika should parse.
+   * Send a chat prompt—kiosk should reach Ollama and stream a reply.
+
+7. **Optional hardening**
+
+   * Lock Windows firewall to `localhost:8501` if no LAN access is desired.
+   * Add log-rotation or image-prune cronjobs in WSL.
+   * Back up `/opt/kiosk-llm` and your compose file.
+
+Complete those remaining steps and the production stack will auto-start and self-heal on every Windows boot.
