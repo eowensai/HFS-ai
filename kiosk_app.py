@@ -1,8 +1,8 @@
 # ══════════════════════════════════════════════════════════════════
 # File:         kiosk_app.py
 # Project:      HFS-ai Assistant
-# Version:      13.8 (Reverted backend_up and file_uploader to v13.3 logic)
-# Last updated: 2025-06-20
+# Version:      14.0 (Updated to use Streamlit 1.46.0 chat_input with accept_file)
+# Last updated: 2025-06-22
 # ══════════════════════════════════════════════════════════════════
 
 # ── Imports ───────────────────────────────────────────────────────
@@ -123,9 +123,9 @@ with st.sidebar:
         st.rerun()
 
     # File uploader logic reverted to exact v13.3 behavior
-    if st.button("Attach Files", use_container_width=True):
-        st.session_state.show_uploader = not st.session_state.show_uploader
-        st.rerun()
+#    if st.button("Attach Files", use_container_width=True):
+#        st.session_state.show_uploader = not st.session_state.show_uploader
+#        st.rerun()
 
     if st.session_state.show_uploader:
         uploads = st.file_uploader("Select files:",
@@ -187,8 +187,55 @@ for msg_data in st.session_state.messages:
         else: # Assumed list of parts for multimodal messages
             st.markdown(preview_text(msg_data["content"]))
 
+# Updated chat input with file attachment support
+prompt_input = st.chat_input(
+    "Ask me anything…",
+    accept_file=True,
+    file_type=["jpg", "jpeg", "png", "pdf", "doc", "docx", "txt"]
+)
 
-if prompt_input_text := st.chat_input("Ask me anything…"):
+if prompt_input:
+    # Handle both text-only (string) and text+files (dict-like) inputs
+    if isinstance(prompt_input, str):
+        # Backward compatibility - text only input
+        prompt_input_text = prompt_input
+        chat_uploaded_files = []
+    else:
+        # New format with files - prompt_input is dict-like
+        prompt_input_text = prompt_input.text or ""
+        chat_uploaded_files = prompt_input.files or []
+
+    # Process any files uploaded through chat input
+    for uploaded_file in chat_uploaded_files:
+        data = uploaded_file.getvalue()
+
+        if uploaded_file.type and uploaded_file.type.startswith("image/"):
+            st.session_state.pending_files.append({
+                "name": uploaded_file.name,
+                "type": "image",
+                "mime": uploaded_file.type,
+                "data": base64.b64encode(data).decode(),
+            })
+        else:
+            # Process documents with Tika
+            if not TIKA_OK:
+                st.warning(f"📄 Document parsing unavailable for {uploaded_file.name}")
+            else:
+                with st.spinner(f"Parsing {uploaded_file.name}…"):
+                    try:
+                        parsed = parser.from_buffer(data, serverEndpoint=TIKA_URL)
+                        txt = parsed.get("content", "").strip()
+                        if txt:
+                            st.session_state.pending_files.append({
+                                "name": uploaded_file.name,
+                                "type": "doc",
+                                "data": txt,
+                            })
+                        else:
+                            st.warning(f"⚠️ {uploaded_file.name}: no text found")
+                    except Exception as e:
+                        st.error(f"❌ {uploaded_file.name}: {str(e)[:100]}")
+
     with st.chat_message("user"): # Display user's typed message
         st.markdown(prompt_input_text)
 
