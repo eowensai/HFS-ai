@@ -186,11 +186,11 @@ if st.session_state.show_welcome:
     st.markdown(
     """
     <div class="right-align-block">
-      I understand images and most document types, but can't create files.<br>
-      <div style="text-align: center; margin: 0.6rem 0; font-size: 7px; color: #6B5B95; letter-spacing: 10px;">• • •</div>
-      I'm offline, don't remember past chats, and everything disappears when you refresh.<br>
-      <div style="text-align: center; margin: 0.6rem 0; font-size: 7px; color: #6B5B95; letter-spacing: 10px;">• • •</div>
-      I try to be helpful, but sometimes I'm wrong—please double-check important answers.
+      I understand images and most document types, attach one per message.<br>
+      <div style="text-align: center; margin: 0.7rem 0; font-size: 7px; color: #6B5B95; letter-spacing: 10px;">• • •</div>
+      I'm unable to search online, and conversations are erased when you refresh or hit 'New Conversation'.<br>
+      <div style="text-align: center; margin: 0.7rem 0; font-size: 7px; color: #6B5B95; letter-spacing: 10px;">• • •</div>
+      I try to be helpful, but sometimes I'm wrong—please double-check important answers!
     </div>
     """,
     unsafe_allow_html=True,
