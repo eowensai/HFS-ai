@@ -239,3 +239,16 @@ section[data-testid="stSidebar"] button[title="View fullscreen"] {
   visibility: hidden !important;
   pointer-events: none !important;   /* just in case the icon is cached */
 }
+
+/* === instruction block (centered) ============================== */
+.right-align-block {
+  text-align: center;
+  margin-top: 0.0rem;
+  line-height: 0.75;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 16.2px;
+  color: #5A4B7C;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.25px;
+}
