@@ -77,6 +77,7 @@ DEFAULT_SESSION_STATE = {
     "pending_files": [],
     "show_uploader": False,
     "uploader_key":  0,
+    "show_welcome":  True,
 }
 for k, v in DEFAULT_SESSION_STATE.items():
     st.session_state.setdefault(k, v)
@@ -173,7 +174,7 @@ with st.sidebar:
                     st.session_state.pending_files.pop(i);  st.rerun()
 
 # ── Main chat ────────────────────────────────────────────────────
-if not st.session_state.messages:
+if st.session_state.show_welcome:
     st.markdown(
         "<div class='welcome-text' style='font-size:2.2em;font-weight:500;'>"
         "Welcome to <span class='hfs'>HFS</span><span class='ai'>-ai</span>"
@@ -204,16 +205,19 @@ for msg_data in st.session_state.messages:
             st.markdown(preview_text(msg_data["content"]))
 
 # Updated chat input with file attachment support
-prompt_input = st.chat_input(
-    "Ask me anything…",
-    accept_file=True,
-    file_type=["jpg", "jpeg", "png", "pdf", "doc", "docx", "txt"]
-)
+prompt_input = st.chat_input("Ask me anything…", accept_file=True)
 
 if prompt_input:
-    # Handle both text-only (string) and text+files (dict-like) inputs
+    # • if welcome block still showing, stash the prompt and rerun once
+    if st.session_state.show_welcome:
+        st.session_state["_first_prompt_raw"] = prompt_input
+        st.session_state.show_welcome = False     # hide it on next run
+        st.rerun()                   # immediate clean refresh
+
+# After the automatic rerun, process the stored prompt (if any) as usual
+prompt_input = st.session_state.pop("_first_prompt_raw", None) or prompt_input
+if prompt_input:
     if isinstance(prompt_input, str):
-        # Backward compatibility - text only input
         prompt_input_text = prompt_input
         chat_uploaded_files = []
     else:
