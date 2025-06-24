@@ -177,7 +177,23 @@ if not st.session_state.messages:
     st.markdown(
         "<div class='welcome-text' style='font-size:2.2em;font-weight:500;'>"
         "Welcome to <span class='hfs'>HFS</span><span class='ai'>-ai</span>"
-        "</div>", unsafe_allow_html=True)
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── Quick instructions (right-aligned) ───────────────────────
+    st.markdown(
+    """
+    <div class="right-align-block">
+      I understand images and most document types, but can't create files.<br>
+      <div style="text-align: center; margin: 0.6rem 0; font-size: 7px; color: #6B5B95; letter-spacing: 10px;">• • •</div>
+      I'm offline, don't remember past chats, and everything disappears when you refresh.<br>
+      <div style="text-align: center; margin: 0.6rem 0; font-size: 7px; color: #6B5B95; letter-spacing: 10px;">• • •</div>
+      I try to be helpful, but sometimes I'm wrong—please double-check important answers.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Display chat history (v13.3 style content check)
 for msg_data in st.session_state.messages:
