@@ -16,5 +16,9 @@ services:
       - TIKA_CLIENT_ONLY=true
 
 networks:
-  llm-net:
+  default:              # ← this key overrides the implicit default
+    external: true
+    name: llm-net       # point it at your pre-made bridge
+
+  llm-net:              # keep this so the 'external' reference resolves
     external: true
