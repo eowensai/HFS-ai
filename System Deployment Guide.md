@@ -18,7 +18,7 @@ When you are finished, you will have four things running inside a Linux subsyste
 
 **GPU target:** This deployment targets **32 GB total NVIDIA VRAM**, including setups like **2 x 16 GB GPUs**.
 
-- The expected target configuration is **256K context** (`num_ctx 262144`) using Qwen3.6 with q8 KV cache.
+- The expected target configuration is **128K context** (`num_ctx 131072`) using Qwen3.6 with q8 KV cache.
 - This is a practical target, not a guarantee. Real behavior depends on your GPU model(s), driver version, CUDA/container stack, and concurrent GPU usage.
 - After deployment, always verify the actual runtime state with `ollama ps`.
 - Only reduce context size if `ollama ps` shows CPU offload, if you hit out-of-memory behavior, or if latency becomes unacceptable.
@@ -232,7 +232,7 @@ Create `/root/Modelfile.qwen36-ephemeral` with this exact content:
 cat > /root/Modelfile.qwen36-ephemeral <<'EOF_MODEL'
 FROM qwen3.6:35b-a3b
 
-PARAMETER num_ctx 262144
+PARAMETER num_ctx 131072
 PARAMETER num_predict -1
 
 PARAMETER temperature 0.7
@@ -269,7 +269,7 @@ exit
 
 ### What these settings mean (plain language)
 
-- `num_ctx 262144` pins the alias runtime context window to 256K tokens.
+- `num_ctx 131072` pins the alias runtime context window to 128K tokens.
 - `num_predict -1` avoids an Ollama-side artificial output cap.
 - `temperature`, `top_p`, `top_k`, `min_p`, and `repeat_penalty` are practical Qwen non-thinking defaults that Ollama can store in the Modelfile.
 - `presence_penalty` is intentionally **not** in this Modelfile. EphemerAl sends `presence_penalty=1.5` per request. External OpenAI-compatible clients should also send `presence_penalty=1.5` in each request.
@@ -291,7 +291,7 @@ Pass criteria:
 1. `docker compose ps` shows all services running.
 2. `ollama list` shows `ephemeral-default`.
 3. `ollama ps` shows `ephemeral-default` loaded.
-4. `CONTEXT` is `262144`.
+4. `CONTEXT` is `131072`.
 5. `PROCESSOR` is `100% GPU` (or otherwise clearly indicates the model is not CPU-offloaded).
 6. The browser app opens at **http://localhost:8501**.
 7. A simple prompt returns a normal answer without visible `<think>` content.
