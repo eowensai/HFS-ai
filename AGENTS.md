@@ -92,7 +92,7 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
   - `top_p=0.8`
   - `presence_penalty=1.5`
 - The Ollama alias `Modelfile` should define:
-  - `PARAMETER num_ctx 262144`
+  - `PARAMETER num_ctx 131072`
   - `PARAMETER num_predict -1`
   - `PARAMETER temperature 0.7`
   - `PARAMETER top_p 0.8`
