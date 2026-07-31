@@ -16,10 +16,10 @@ services:
   # Large-language-model back-end (Ollama)
   # --------------------------------------------------------------------------
   ollama:
-    # Pinned for compatibility with Qwen3.6-35B-A3B / ephemeral-default. Last validated: April 2026.
+    # Pinned for compatibility with Qwen3.6-35B-A3B / ephemeral-default. Last validated: July 2026.
     # Check https://github.com/ollama/ollama/releases before upgrading.
     # NOTE: ollama/ollama#14716 (vision+thinking) is fixed; workaround retained as defense-in-depth.
-    image: ollama/ollama:0.21.0
+    image: ollama/ollama:0.32.5
     container_name: ollama
     restart: unless-stopped
     networks: [llm-net]
@@ -97,7 +97,7 @@ services:
     environment:
       - LLM_BASE_URL=http://ollama:11434/v1
       - LLM_MODEL_NAME=ephemeral-default   # Default alias for Qwen3.6-35B-A3B in this stack.
-      - LLM_CONTEXT_TOKENS=262144          # App-side budgeting hint for document/context packing.
+      - LLM_CONTEXT_TOKENS=131072          # App-side budgeting hint for document/context packing.
       # Actual Ollama context window is set by PARAMETER num_ctx in the ephemeral-default Modelfile.
       - LLM_OUTPUT_RESERVE_TOKENS=${LLM_OUTPUT_RESERVE_TOKENS:-32768}
       - LLM_REQUEST_TIMEOUT_S=${LLM_REQUEST_TIMEOUT_S:-1800}
