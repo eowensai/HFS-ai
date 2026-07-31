@@ -32,7 +32,7 @@ Using a stable local alias is intentional: it lets you pin runtime defaults (lik
 
 ### Runtime assumptions in this repo
 
-- **256K target context:** set through alias Modelfile `num_ctx 262144`.
+- **128K target context:** set through alias Modelfile `num_ctx 131072`.
 - **q8 KV cache target:** configured via Ollama environment variable in the deployment path.
 - **Non-thinking by default:** requests use `reasoning_effort="none"`.
 - **No default EphemerAl output cap:** the app does not set `max_tokens` unless you explicitly configure `LLM_MAX_TOKENS`.
@@ -71,7 +71,7 @@ EphemerAl is designed for trusted local networks (home, office LAN) and does not
 - Ollama API (OpenAI-compatible endpoint for chat)
 - Apache Tika server
 - Docker Compose (for the included deployment path)
-- Pinned Ollama container image in compose: `ollama/ollama:0.21.0`
+- Pinned Ollama container image in compose: `ollama/ollama:0.32.5`
 - Pinned Apache Tika container image in compose: `apache/tika:3.3.0.0-full`
 
 ## Hardware Planning (honest baseline)
