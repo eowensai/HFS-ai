@@ -9,6 +9,22 @@ def test_requirements_pin_streamlit_156():
     assert "streamlit==1.56.0" in requirements_text
 
 
+def test_streamlit_theme_config_exists_for_docker_build():
+    config_path = REPO_ROOT / ".streamlit" / "config.toml"
+    assert config_path.is_file()
+
+    config_text = config_path.read_text(encoding="utf-8")
+    assert "[theme]" in config_text
+    for key in (
+        "base",
+        "primaryColor",
+        "backgroundColor",
+        "secondaryBackgroundColor",
+        "textColor",
+    ):
+        assert f"{key} =" in config_text
+
+
 def test_theme_css_keeps_root_and_chat_role_selectors():
     css = (REPO_ROOT / "theme.css").read_text(encoding="utf-8")
     assert ":root {" in css
