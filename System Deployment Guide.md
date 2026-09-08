@@ -1,485 +1,335 @@
-# EphemerAl: System Deployment Guide
+# EphemerAI — System Deployment Guide
 
-**Default model: Qwen3.6-35B-A3B via local alias `ephemeral-default`**
+This guide rebuilds the September 8, 2026 deployment on a Windows 11 workstation.
+It also explains safe updates when HFS Knowledge already shares its backend.
+Commands marked **PowerShell (Admin)** run on Windows. Commands marked **Ubuntu**
+run inside WSL. Do not run fresh-host installation steps on a working shared host.
 
-This guide walks you through a complete installation of EphemerAl on a Windows 11 machine with an NVIDIA GPU. Every step is designed for copy-and-paste; no Linux experience is required.
+## 1. Choose the right path
 
-When you are finished, you will have four things running inside a Linux subsystem on your Windows PC:
+| Situation | Start here |
+|---|---|
+| Working host, update EphemerAI only | [App-only update](#8-update-or-stop-an-existing-installation) |
+| Replacement host with the recovery archives | Install prerequisites below, then [restore assets](#4-restore-the-exact-images-and-model) |
+| Source repository only, no recovery archives | Read [source-only recovery limits](docs/RECOVERY.md#source-only-recovery) first |
 
-- **Docker**, the container engine that manages the other three components.
-- **Ollama**, the service that runs the AI model on your GPU.
-- **Apache Tika**, a document parser that lets the AI read uploaded files (PDFs, Word docs, spreadsheets, and more).
-- **EphemerAl**, the web-based chat interface your users will open in a browser.
+The repository contains no HFS Knowledge application or operational data.
+A fresh standalone EphemerAI installation works without HFS. The required alias
+keeps its shared name either way. If HFS is installed separately, coordinate all
+Ollama/Tika, Docker, GPU and WSL maintenance with its operator.
 
+## 2. Prepare Windows, WSL and the GPU
 
-## System Requirements
+The measured host uses Windows 11, 64 GiB RAM, two RTX 5060 Ti 16 GiB cards, and
+about 30 GiB RAM allocated to WSL. Keep at least 30 GiB available to WSL and adequate
+Windows headroom; smaller hosts are not certified for this model profile. Allow
+at least 100 GiB free disk for images, the model, builds and a recovery copy.
 
-**Operating system:** Windows 11 (Pro or Enterprise recommended, Home is supported), version 21H2 or higher, fully updated. Windows Server is not covered by this guide.
-
-**GPU target:** This deployment targets **32 GB total NVIDIA VRAM**, including setups like **2 x 16 GB GPUs**.
-
-- The expected target configuration is **128K context** (`num_ctx 131072`) using Qwen3.6 with q8 KV cache.
-- This is a practical target, not a guarantee. Real behavior depends on your GPU model(s), driver version, CUDA/container stack, and concurrent GPU usage.
-- After deployment, always verify the actual runtime state with `ollama ps`.
-- Only reduce context size if `ollama ps` shows CPU offload, if you hit out-of-memory behavior, or if latency becomes unacceptable.
-- CPU-only is technically possible but far too slow for interactive use.
-
-**NVIDIA Driver:** Install the latest WHQL-certified driver from NVIDIA's website before proceeding. If your PC has both integrated graphics and a discrete NVIDIA card, connecting your monitor to the integrated output can leave more VRAM available for AI workloads.
-
-
-## Preflight Checks
-
-Before entering Linux, confirm two things from the Windows side.
-
-**1. Verify your NVIDIA driver is working.** Open PowerShell (regular, not Admin) and run:
+Install a current supported NVIDIA **Windows** driver. Do not install a Linux
+display driver inside WSL. The verified driver was 610.88. In PowerShell, check:
 
 ```powershell
 nvidia-smi
-```
-
-You should see a table with your GPU name, driver version, and VRAM. If this command is not recognized or shows an error, install or update your NVIDIA driver before continuing.
-
-**2. Check your WSL version** (if WSL is already installed). Run:
-
-```powershell
 wsl --version
+wsl --list --verbose
 ```
 
-If WSL is not installed yet, this will show an error or help text; that is fine, the next step installs it. If WSL is installed, confirm the output shows WSL version 2.x. If it shows version 1, you will need to update.
-
-
-## Step 1: Install the Linux Subsystem (WSL2)
-
-Windows can run a full Linux environment alongside your desktop through a feature called WSL2 (Windows Subsystem for Linux). This is where all of the AI software will live.
-
-1. Click the **Windows button**, type **PowerShell**, and choose **Run as Administrator**.
-
-2. Run this command, which enables the required Windows features and installs Ubuntu in a single step:
+On a fresh host without WSL, run **PowerShell (Admin)**:
 
 ```powershell
 wsl --install -d Ubuntu-24.04
 ```
 
-If the install appears stuck at 0%, try the web-download variant instead:
+Reboot if prompted and complete Ubuntu's first-run username/password setup. The
+verified WSL baseline is 2.7.13.0 with kernel 6.18.33.2; use current supported
+security updates and verify them before admitting users. Update WSL during setup
+with `wsl --update`. Require VERSION 2 for Ubuntu-24.04 in `wsl --list --verbose`.
 
-```powershell
-wsl --install --web-download -d Ubuntu-24.04
-```
-
-3. **Reboot when prompted.** WSL may ask you to restart to finish enabling background features.
-
-4. After rebooting, Ubuntu should open automatically (or you can launch it from the Start menu). It will ask you to create a Linux username and password:
-
-   - **Username:** You can press Enter to accept the default (usually your Windows username), or type something short like `aiadmin`.
-   - **Password:** Choose something you will remember and write it down. You will need it occasionally for install commands. The terminal will not show any characters while you type the password; this is normal.
-
-When you see a prompt that looks like `username@YOURPC:~$`, Ubuntu is ready.
-
-**Verify WSL2 is active.** Switch back to PowerShell (Admin) and run:
-
-```powershell
-wsl -l -v
-```
-
-You should see `Ubuntu-24.04` listed with VERSION 2. If it shows version 1, upgrade it with `wsl --set-version Ubuntu-24.04 2`.
-
-
-## Step 2: Install Docker and the NVIDIA GPU Toolkit
-
-Docker is the container system that runs each piece of the stack in its own isolated environment. The NVIDIA toolkit lets Docker pass your GPU through to containers so the AI model can use it.
-
-**Where you should be:** Inside the Ubuntu terminal from the previous step. If you closed it, open PowerShell and type `wsl -d Ubuntu-24.04` to get back in (using `-d Ubuntu-24.04` ensures you enter the right Linux environment, which matters if you have multiple distros installed). Then run `cd ~` to make sure you are in your Linux home folder. This is important: the Linux home folder lives on the Linux filesystem, which is significantly faster for file operations than working under `/mnt/c` (your Windows C: drive).
-
-### 2a. Update Ubuntu and install basic tools
+In **Ubuntu**, check that systemd is active:
 
 ```bash
-cd ~
+ps -p 1 -o comm=
 ```
 
+Expected: `systemd`. If needed, merge the `[boot] systemd=true` setting from
+[the example](deployment/windows/wsl.conf.example) into `/etc/wsl.conf` using
+`sudoedit /etc/wsl.conf`. Restart this new distro before continuing. On an existing
+host, a WSL restart requires a shared maintenance window.
+
+Keep WSL NAT and `localhostForwarding=true`; merge the
+[Windows-side example](deployment/windows/wslconfig.example) into
+`%UserProfile%\.wslconfig` only if needed. Do not disable Windows paging, change
+encryption or erase old swap/dumps as an installation shortcut.
+
+## 3. Install Docker and NVIDIA Container Toolkit
+
+These are **fresh-host Ubuntu commands**. Work on the Linux filesystem, such as
+`~/ephemeral-llm`, rather than under `/mnt/c`, for runtime performance.
+
 ```bash
-sudo apt update && sudo apt full-upgrade -y
+sudo apt update
+sudo apt install -y ca-certificates curl git gnupg build-essential python3 python3-venv
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
 ```
 
-```bash
-sudo apt install -y build-essential curl git gpg unattended-upgrades
-```
+Create Docker's signed repository definition:
 
 ```bash
-sudo dpkg-reconfigure -plow unattended-upgrades
-```
-
-The last command opens a pink/blue dialog. Make sure **Yes** is highlighted and press Enter. This turns on automatic security updates for your Linux environment.
-
-### 2b. Install Docker
-
-```bash
-curl -fsSL https://get.docker.com | sudo sh
-```
-
-```bash
+sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF_DOCKER
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: noble
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF_DOCKER
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
 ```
 
-```bash
-sudo usermod -aG docker $USER
-```
+Close this Ubuntu terminal and reopen it so the group change takes effect.
+The verified baseline is Docker 29.8.0, Compose 5.1.3, containerd 2.3.4 and runc
+1.5.1. Current signed security updates may be newer; record versions and validate
+rather than restoring an old security exposure just to match a version number.
+The Docker group grants administrative control over Docker; use a trusted operator.
 
-The last command gives your user account permission to manage Docker, but the change does not take effect until you log out and back in:
-
-1. Type `exit` and press Enter (this drops you back to PowerShell).
-2. Type `wsl -d Ubuntu-24.04` and press Enter (this puts you back into Ubuntu).
-3. Type `cd ~` and press Enter (returns you to your home folder).
-
-**Verify Docker is working** before continuing:
+Add NVIDIA's signed repository and configure the runtime:
 
 ```bash
-docker run --rm hello-world
-```
-
-You should see a message that starts with "Hello from Docker!" If you get a permission error instead, repeat the log-out/log-in steps above.
-
-### 2c. Install the NVIDIA Container Toolkit
-
-These three commands add NVIDIA's package repository and install the toolkit. Run them one at a time:
-
-```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-```
-
-```bash
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-```
-
-```bash
-sudo apt update && sudo apt install -y nvidia-container-toolkit
-```
-
-### 2d. Configure Docker to use the NVIDIA runtime
-
-This command registers the NVIDIA runtime with Docker and makes it the default, so all containers can access the GPU without extra flags:
-
-```bash
-sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
-```
-
-```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey |
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list |
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' |
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt update
+sudo apt install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 ```
 
-### 2e. Configure Docker log rotation
-
-This prevents Docker's log files from growing indefinitely and filling your disk. Copy and paste the entire block:
+Verify before proceeding:
 
 ```bash
-sudo python3 -c "
-import json, pathlib
-p = pathlib.Path('/etc/docker/daemon.json')
-cfg = json.loads(p.read_text()) if p.exists() else {}
-cfg['log-driver'] = 'json-file'
-cfg['log-opts'] = {'max-size': '10m', 'max-file': '3'}
-p.write_text(json.dumps(cfg, indent=2))
-"
-```
-
-```bash
-sudo systemctl restart docker
-```
-
-This merges the log rotation settings into your existing Docker configuration without overwriting the NVIDIA runtime entry that was just added.
-
-### 2f. Verify the GPU is visible to Docker
-
-```bash
+docker version
+docker compose version
+docker info -f '{{ .DriverStatus }}'
 docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi
 ```
 
-You should see a table showing your GPU name, driver version, and VRAM. If this fails, your NVIDIA driver may need updating, or the toolkit install did not complete. Go back to Step 2c and confirm each command ran without errors.
+Require `driver-type io.containerd.snapshotter.v1` from `docker info`. The saved
+images use OCI indexes, so exact restoration requires the containerd image store
+(default for fresh Docker Engine 29+ installs). An upgraded legacy store can lose
+the recorded index identities. If this check differs on a **new recovery host**,
+follow [Docker's image-store instructions](https://docs.docker.com/engine/storage/containerd/)
+before loading assets. Do not switch a working shared host as a setup shortcut.
 
+These instructions use Docker Engine **inside Ubuntu**, not a second Docker
+Desktop daemon. Use one daemon for this stack. Official references:
+[Docker on Ubuntu](https://docs.docker.com/engine/install/ubuntu/),
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
+[WSL systemd](https://learn.microsoft.com/en-us/windows/wsl/systemd).
 
-## Step 3: Deploy EphemerAl and Create the Qwen Alias
+## 4. Restore the exact images and model
 
-This step starts the stack, pulls the Qwen model, and creates the local alias EphemerAl expects.
+Obtain the repository branch/merged `main` from
+[github.com/eowensai/HFS-ai](https://github.com/eowensai/HFS-ai). It is currently
+private: authenticate with your normal GitHub account or download the ZIP in the
+web UI. Never embed a token in a clone command or commit it.
+
+In **Ubuntu**, after authentication:
 
 ```bash
-git clone https://github.com/eowensai/EphemerAl.git ~/ephemeral-llm
-```
-
-```bash
+git clone https://github.com/eowensai/HFS-ai.git ~/ephemeral-llm
 cd ~/ephemeral-llm
 ```
 
-Start the stack first:
+Before the recovery branch is merged, select that branch in GitHub's ZIP download
+or run `git switch recovery/current-system-2026-09-08` after cloning. Do not
+accidentally deploy the older `main` snapshot.
+Compose explicitly names the project `ephemeral-llm`, preserving its model-volume
+and network identities regardless of the checkout folder name.
+
+Transfer the separately retained recovery `assets/` directory to the new host.
+It contains `runtime-images.tar`, `model.tar`, `assets.json` and `SHA256SUMS`.
+Set this shell variable to its actual path:
 
 ```bash
-docker compose up -d --build
+RECOVERY_ASSETS=/mnt/d/HFS-ai-recovery/assets
+python3 scripts/recovery.py verify "$RECOVERY_ASSETS"
+python3 scripts/recovery.py restore-assets "$RECOVERY_ASSETS"
 ```
 
-Then pull Qwen3.6:
+`/mnt/d/...` is an example backup-drive path; replace it before running. Restore
+refuses any existing `ephemeral-app`, `ollama` or `tika-server` container and refuses
+an existing `ephemeral-llm_ollama-models` volume. It verifies archive checksums,
+model artifact names/types/content hashes, and loaded image identities. It creates
+only the absent model volume and starts no inference service. Never delete an
+existing volume to get past this check; use a genuinely fresh recovery host.
+
+Build the core-dump policy before **any** container is started:
 
 ```bash
-docker exec -it ollama ollama pull qwen3.6:35b-a3b
+sh deployment/privacy/build-nodump.sh
+docker compose config -q
 ```
 
-Now enter the Ollama container:
+The compiled library is generated locally and is not a Git asset. It uses the
+containers' existing libc and is mounted read-only. A zero core-file size limit
+alone is insufficient for WSL's piped crash handler. The library sets process
+dumpability to zero too. Reverify after image or architecture changes.
+
+The saved model manifest preserves the **exact** accepted alias identity.
+The Modelfile is included for understanding/reviewed rebuilding; a new alias made
+from an upstream mutable tag is not guaranteed to produce the same digest. Do not
+weaken the application's identity check to make a mismatched model start.
+
+## 5. Start the recovered stack and verify it
+
+On this **new host**, start the restored images without a build or pull:
 
 ```bash
-docker exec -it ollama bash
+docker compose up -d --no-build --pull never ollama tika-server ephemeral-app
+python3 scripts/verify_runtime.py
 ```
 
-Create `/root/Modelfile.qwen36-ephemeral` with this exact content:
+The verifier checks effective cgroup memory/swap values, bounded tmpfs settings,
+core limits, accepted backend images, model manifest and CORS/XSRF/disconnect
+settings. It makes no inference request. Check container states with
+`docker compose ps`. Tika may need several seconds to initialize.
+
+Open **http://localhost:8501** in a fresh browser window. Submit one fictional
+prompt, such as “Fictional lighthouse code is 731. Reply with the number only.”
+The first model load may take a few minutes. Then check:
 
 ```bash
-cat > /root/Modelfile.qwen36-ephemeral <<'EOF_MODEL'
-FROM qwen3.6:35b-a3b
-
-PARAMETER num_ctx 131072
-PARAMETER num_predict -1
-
-PARAMETER temperature 0.7
-PARAMETER top_p 0.8
-PARAMETER top_k 20
-PARAMETER min_p 0
-PARAMETER repeat_penalty 1.0
-EOF_MODEL
+docker exec ollama ollama ps
+docker top ollama -eo pid,args
 ```
 
-Create the alias:
+Require the accepted alias, `100% GPU`, context `131072`, one runner, `-ngl 66`,
+`--cache-type-k q8_0`, `--cache-type-v q8_0`, `--flash-attn on`, `-b 128`, `-ub 128`,
+and `--spec-draft-n-max 2`. The alias output limit remains 32768. Do not silently
+lower context, change quantization or retarget the model for one shared client.
 
-```bash
-ollama create ephemeral-default -f /root/Modelfile.qwen36-ephemeral
+Upload a small fictional TXT/PDF/DOCX or image. Confirm a relevant answer, ordinary
+streaming, no visible reasoning, and working Copy conversation. Click New Chat:
+messages/attachments should disappear. Test two browser sessions to confirm one
+session's reset preserves the other. On a phone/narrow window, confirm sidebar and
+composer usability. [Recorded validation and limits](docs/VALIDATION.md).
+
+If you changed the host address in the Streamlit configuration, rebuild only the
+app using the update command in section 8 after this baseline test. The saved app
+image contains the original pilot address; localhost works for initial recovery.
+
+## 6. Configure the browser address and Windows network access
+
+The recorded pilot address is `172.16.64.243`. For another host, edit
+`.streamlit/config.toml`: set `browser.serverAddress` to the actual Windows host
+name/address and update `server.corsAllowedOrigins` while retaining localhost.
+Keep `enableCORS=true` and `enableXsrfProtection=true`, then rebuild only the app.
+Streamlit compares hostnames and has built-in accepted local/server origins; this
+is not strict scheme/port-origin isolation or client authorization.
+
+The existing site intentionally relies on router/network equipment to decide which
+clients may reach Windows UI ports. Its Windows rules are Profile Any / RemoteAddress
+Any. Preserve that accepted policy on the existing host. On a replacement host,
+establish and test the upstream access boundary before enabling LAN access.
+
+For a **new standalone host**, an administrator can provision the one required
+Windows UI rule once (this is not part of the logon script):
+
+```powershell
+if (-not (Get-NetFirewallRule -DisplayName 'EphemerAI UI 8501' -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName 'EphemerAI UI 8501' -Direction Inbound `
+        -Protocol TCP -LocalPort 8501 -Action Allow -Profile Any -RemoteAddress Any
+}
 ```
 
-Verify it exists:
+Inspect existing/overlapping rules instead of deleting them. Do not add rules or
+forwarding for Tika 9998 or Ollama 11434. The optional API Compose override remains
+available for separately reviewed use, defaulting to loopback; it is not a recovery
+requirement and does not add authentication.
 
-```bash
-ollama list
+## 7. Restore Windows logon startup
+
+The currently deployed task is **Monitor WSL Kiosk Service**, running
+`C:\Scripts\Start-EphemerAl.ps1` under the logged-on user with highest privileges.
+The script starts/keeps WSL alive and refreshes UI forwarding. Docker's enabled
+systemd service and container `restart: unless-stopped` policies start the stack
+when WSL starts. Intentionally stopped containers stay stopped until started again.
+
+Copy the repository to a Windows-accessible location. From **PowerShell (Admin)**,
+run its registration script using your actual extracted repository path:
+
+```powershell
+& 'C:\path\to\HFS-ai\deployment\windows\Register-StartupTask.ps1'
 ```
 
-Check runtime status:
+For the existing ecosystem **only when HFS Knowledge is independently installed
+on 8503**, use:
 
-```bash
-ollama ps
+```powershell
+& 'C:\path\to\HFS-ai\deployment\windows\Register-StartupTask.ps1' -UiPorts '8501,8503'
 ```
 
-Exit the container shell when done:
+The default forwards only EphemerAI 8501. Both scripts are parameterized for the
+WSL distro name. Registration copies the script to `C:\Scripts`, uses a logon
+trigger delayed 30 seconds, and an interactive elevated principal. It does not
+create firewall rules. It does not install HFS, add an HFS database, expose V3, or
+run before Windows login. No automatic Windows login is configured.
 
-```bash
-exit
-```
+Test the task from Task Scheduler, then test a fresh Windows logon in a maintenance
+window. Confirm localhost and an approved peer reach 8501, backend ports stay
+unreachable from Windows, and an unapproved peer is blocked by the upstream policy.
+Server-local tests alone do not certify router/peer filtering.
 
-### What these settings mean (plain language)
+## 8. Update or stop an existing installation
 
-- `num_ctx 131072` pins the alias runtime context window to 128K tokens.
-- `num_predict -1` avoids an Ollama-side artificial output cap.
-- `temperature`, `top_p`, `top_k`, `min_p`, and `repeat_penalty` are practical Qwen non-thinking defaults that Ollama can store in the Modelfile.
-- `presence_penalty` is intentionally **not** in this Modelfile. EphemerAl sends `presence_penalty=1.5` per request. External OpenAI-compatible clients should also send `presence_penalty=1.5` in each request.
-
-
-## Step 4: Verify the Installation (Pass Criteria)
-
-Run these checks from Ubuntu in your repo folder:
+Read [operations](docs/OPERATIONS.md) before touching shared services. Preserve
+uncommitted changes and the old app image. Confirm active requests have finished.
+For a normal EphemerAI code/config update:
 
 ```bash
 cd ~/ephemeral-llm
-docker compose ps
-docker exec -it ollama ollama list
-docker exec -it ollama ollama ps
+sh deployment/privacy/build-nodump.sh
+docker compose up -d --build --no-deps --force-recreate ephemeral-app
+python3 scripts/verify_runtime.py
 ```
 
-Pass criteria:
+The policy build replaces its output atomically, preserving already mapped
+inodes. If the policy source or toolchain changes, verify the candidate and
+coordinate recreation of all affected services; an app-only restart does not
+apply a new policy to the shared backends. Retain the verified library when its
+source is unchanged; the build command is required if that generated file is absent.
+App recreation clears in-memory sessions. It must not restart Ollama/Tika, pull or
+recreate models, change HFS data, or stop WSL merely to update this application.
 
-1. `docker compose ps` shows all services running.
-2. `ollama list` shows `ephemeral-default`.
-3. `ollama ps` shows `ephemeral-default` loaded.
-4. `CONTEXT` is `131072`.
-5. `PROCESSOR` is `100% GPU` (or otherwise clearly indicates the model is not CPU-offloaded).
-6. The browser app opens at **http://localhost:8501**.
-7. A simple prompt returns a normal answer without visible `<think>` content.
-
-If any container is not running, collect logs:
+To stop/start only the app:
 
 ```bash
-docker compose logs ollama
-docker compose logs ephemeral-app
-docker compose logs tika-server
+docker compose stop ephemeral-app
+docker compose start ephemeral-app
 ```
 
-If `ollama ps` shows CPU offload, OOM behavior, or unacceptable latency, reduce `num_ctx` in `/root/Modelfile.qwen36-ephemeral`, recreate the alias, and test again.
+Shared backend, Docker, driver or WSL changes require an idle maintenance window
+covering HFS and all active prototypes. Never use `docker compose down -v`, model
+removal, broad Docker pruning, or WSL unregistration as a troubleshooting shortcut.
 
+## 9. Troubleshooting and durable recovery
 
-## Non-Thinking Behavior (Important)
-
-EphemerAl disables Qwen "thinking mode" through the OpenAI-compatible request field:
-
-- `reasoning_effort="none"`
-
-Operator guidance:
-
-- Do **not** add `/nothink` to prompts.
-- Do **not** add `<think>` tags to the system prompt.
-- Visible reasoning output is intentionally suppressed by default.
-
-
-## Output Length Behavior (Important)
-
-- EphemerAl does **not** impose `max_tokens` by default.
-- `LLM_OUTPUT_RESERVE_TOKENS` reserves part of the input/document budget so the model has room to answer; it does **not** cap output length.
-- If endless-loop behavior ever appears, handle that as a separate stability issue. Do not cap normal document-analysis outputs to `8192` tokens as a blanket workaround.
-
-
-## Step 5: Network Access and Auto-Start (UI on Port 8501)
-
-These steps make EphemerAl available to other computers on your local network and ensure it starts automatically when you log in to Windows.
-
-### Important context
-
-The application runs as a **user-level task**, not a system service. This means it will only start after a specific Windows user logs in. It will not run while the computer is sitting at the lock screen after a reboot. If you want appliance-style behavior where the machine starts everything on boot without a login, search for "netplwiz auto login" to configure automatic Windows login.
-
-### 5a. Allow traffic through the Windows Firewall
-
-Switch to **PowerShell (Admin)** on the Windows side and run:
-
-```powershell
-New-NetFirewallRule -DisplayName "EphemerAl Port 8501" -Direction Inbound -Protocol TCP -LocalPort 8501 -Action Allow
-```
-
-This rule applies to all network profiles (Domain, Private, and Public). If you want to restrict it to private networks only, add `-Profile Private` to the command.
-
-### 5b. Create the startup script
-
-WSL2 in its default networking mode gets a new internal IP address each time it starts, so Windows needs a small script that discovers that address and forwards incoming traffic on port 8501 to it.
-
-1. Open **Notepad** in Windows.
-2. Paste the following:
-
-```powershell
-$wslIP = (wsl -d Ubuntu-24.04 -- hostname -I).Split()[0]
-netsh interface portproxy delete v4tov4 listenport=8501 listenaddress=0.0.0.0 2>$null
-netsh interface portproxy add v4tov4 listenport=8501 listenaddress=0.0.0.0 connectport=8501 connectaddress=$wslIP
-wsl -d Ubuntu-24.04 -- sleep infinity
-```
-
-3. Save the file as `C:\Scripts\Start-EphemerAl.ps1` (create the `C:\Scripts` folder first if it does not exist).
-
-Every `wsl` call in this script explicitly targets `Ubuntu-24.04` with `-d`. This prevents problems on machines that have multiple Linux distros installed, where bare `wsl` would target whichever distro is set as the default.
-
-### 5c. Schedule the script to run at login
-
-1. Search Windows for **Task Scheduler** and open it as Administrator.
-2. Click **Create Task** in the right sidebar.
-3. On the **General** tab: name it `EphemerAl Auto-Start`. Check both **Run only when user is logged on** and **Run with highest privileges**.
-4. On the **Triggers** tab: click New. Set "Begin the task" to **At log on**. Set "Delay task for" to **30 seconds**. Click OK.
-5. On the **Actions** tab: click New. Set "Program/script" to `powershell.exe`. In the "Add arguments" field, paste:
-
-```
--ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\Scripts\Start-EphemerAl.ps1"
-```
-
-6. Click OK to save the task.
-
-### 5d. Test network access (UI)
-
-1. Reboot your computer and log in to Windows. Wait about 30 seconds.
-2. Find your PC's IP address by opening PowerShell and running `ipconfig`. Look for the **IPv4 Address** under your active network adapter (for example, `192.168.1.50`).
-3. From a different device on the same network (phone, laptop, another PC), open a browser and go to `http://YOUR_IP_ADDRESS:8501`.
-
-If the page works locally but not from another device, confirm your Windows network profile is set to **Private** (Settings → Network & Internet → your connection → Network profile type → Private), and verify the firewall rule from Step 5a was created successfully by running `Get-NetFirewallRule -DisplayName "EphemerAl*"` in PowerShell.
-
-
-## Optional: Expose Ollama as a Shared API Backend (Port 11434)
-
-By default, this stack keeps raw Ollama internal. That is the safest default and is recommended for most operators.
-
-Use this only when you intentionally want professional development/dev tools to call Ollama directly.
-
-### Start with API override
-
-From `~/ephemeral-llm`, run:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.api.yml up -d
-```
-
-This override defaults `OLLAMA_API_BIND` to `127.0.0.1`.
-
-- `127.0.0.1` means local-host access only.
-- For LAN exposure, you must intentionally set `OLLAMA_API_BIND=0.0.0.0` (or another appropriate bind address), then apply Windows firewall and WSL portproxy rules as needed.
-
-### Security warning (read before exposing)
-
-Raw Ollama in this stack has **no app-level authentication**. Do not treat it as safe for broad LAN or internet exposure by default.
-
-For team use, place it behind one or more controls:
-
-- VPN access
-- firewall allow-list
-- reverse proxy with authentication and TLS
-
-### Optional Windows networking for API port 11434
-
-Only do this if you intentionally expose the API beyond localhost.
-
-**PowerShell (Admin):**
-
-```powershell
-New-NetFirewallRule -DisplayName "EphemerAl Ollama API 11434" -Direction Inbound -Protocol TCP -LocalPort 11434 -Action Allow
-```
-
-```powershell
-$wslIP = (wsl -d Ubuntu-24.04 -- hostname -I).Split()[0]
-netsh interface portproxy delete v4tov4 listenport=11434 listenaddress=0.0.0.0 2>$null
-netsh interface portproxy add v4tov4 listenport=11434 listenaddress=0.0.0.0 connectport=11434 connectaddress=$wslIP
-```
-
-Keep this section separate from the normal UI path on port 8501. Exposing 11434 is optional and should be deliberate.
-
-
-## External API Caller Examples (Optional)
-
-### OpenAI-compatible client example
-
-- `base_url`: `http://<server>:11434/v1`
-- `model`: `ephemeral-default`
-- `api_key`: any placeholder value (for example, `not-used`)
-- Include request fields:
-  - `reasoning_effort: "none"`
-  - `temperature: 0.7`
-  - `top_p: 0.8`
-  - `presence_penalty: 1.5`
-
-Example payload body:
-
-```json
-{
-  "model": "ephemeral-default",
-  "messages": [
-    {"role": "user", "content": "Summarize this incident report."}
-  ],
-  "reasoning_effort": "none",
-  "temperature": 0.7,
-  "top_p": 0.8,
-  "presence_penalty": 1.5
-}
-```
-
-### Native Ollama API example
-
-Endpoint: `POST http://<server>:11434/api/chat`
-
-```json
-{
-  "model": "ephemeral-default",
-  "messages": [
-    {"role": "user", "content": "Summarize this incident report."}
-  ],
-  "think": false,
-  "options": {
-    "temperature": 0.7,
-    "top_p": 0.8,
-    "top_k": 20,
-    "min_p": 0,
-    "repeat_penalty": 1.0,
-    "num_predict": -1
-  }
-}
-```
+- A missing model or wrong digest: restore the exact selected artifacts; don't
+  change the allowlisted digest or use a different alias as a workaround.
+- Tika image unavailable: it is a local maintenance image, not a pullable Docker
+  Hub tag. Load the verified archive. See [Tika maintenance](deployment/tika/README.md).
+- Missing preload library: build it before creating containers and verify the
+  mounted file. Never ignore loader errors or claim RLIMIT_CORE alone is sufficient.
+- Memory failure: inspect cgroup `memory.events`, peaks and model/GPU placement.
+  Keep swap disabled; use a measured capacity review rather than unlimited RAM.
+- Logs: Ollama/Tika Docker logging is disabled. The app has bounded rotated logs.
+  Do not enable content logging or paste real documents/prompts into diagnostic tools.
+- Lost machine: Git supplies source and instructions, not large artifacts or HFS
+  data. Keep a verified recovery archive on another device/service. [Recovery guide](docs/RECOVERY.md).

@@ -1,0 +1,4 @@
+*
+!Dockerfile
+!tika-config.xml
+!tika-server-standard-3.3.2.jar

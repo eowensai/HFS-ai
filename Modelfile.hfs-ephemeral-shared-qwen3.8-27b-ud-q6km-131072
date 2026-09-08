@@ -1,0 +1,28 @@
+# Immutable shared HFS Knowledge and EphemerAI production alias. Both
+# applications use this alias so switching applications never swaps models.
+# Ollama 0.32.15's automatic placement used only 58/66 GPU layers, so the
+# explicit full-offload setting is required for this exact profile.
+FROM hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M
+REQUIRES 0.32.15
+RENDERER qwen3.8
+PARSER qwen3.5
+
+# Exact validated context, physical/evaluation batch, and full GPU placement.
+PARAMETER num_ctx 131072
+PARAMETER num_predict 32768
+PARAMETER num_batch 128
+PARAMETER num_gpu 66
+
+# Qwen3.8 embeds its compatible MTP/NextN tensors. Do not attach a separate
+# draft GGUF. Two native draft tokens was the selected stable setting.
+PARAMETER draft_num_predict 2
+
+# Official Qwen3.8 thinking-mode sampling profile. Per-turn reasoning effort
+# remains an application request option: medium normally, xhigh for the
+# one-turn Thinking Mode control.
+PARAMETER temperature 1.0
+PARAMETER top_p 0.95
+PARAMETER top_k 20
+PARAMETER min_p 0.0
+PARAMETER presence_penalty 0.0
+PARAMETER repeat_penalty 1.0

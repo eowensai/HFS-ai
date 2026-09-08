@@ -58,3 +58,10 @@ requirements-dev.txt
 
 # Generated test artifacts
 artifacts/
+
+# Recovery tooling and documentation are not application runtime payloads.
+docs/
+recovery-assets/
+*.tar
+*.tar.gz
+*.zip

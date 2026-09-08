@@ -1,0 +1,4 @@
+services:
+  tika-server:
+    image: shared-tika:rollback-20260907@sha256:ecdd37e204308266b1f8e28569f8516ebd5b96d7a4518a71d3904710b20c03b3
+    pull_policy: never

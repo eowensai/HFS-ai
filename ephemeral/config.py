@@ -1,14 +1,13 @@
 import os
 from typing import Optional
 
-APP_VERSION = "1.8.1"
+APP_VERSION = "1.9.0"
 
 # Prefix used for synthetic context blocks injected into user messages.
 # We use a flag (_synthetic) to identify these, not string matching.
 CONTEXT_PREFIX = "Context:\n"
 
 # TTL for session-scoped Tika parse cache (seconds)
-TIKA_CACHE_TTL_S = 3600
 
 # Token estimation behavior
 TOKEN_HEURISTIC_CHARS_PER_TOKEN = 3.5
@@ -22,9 +21,21 @@ DEBUG_MODE = os.getenv("EPHEMERAL_DEBUG", "0").strip().lower() in {"1", "true", 
 ENABLE_TOKEN_BUDGETING = os.getenv("ENABLE_TOKEN_BUDGETING", "1").strip().lower() not in {"0", "false", "no"}
 
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://ollama:11434/v1")
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "ephemeral-default")
 TIKA_URL = os.getenv("TIKA_URL", "http://tika-server:9998")
 LLM_SUPPORTS_VISION = os.getenv("LLM_SUPPORTS_VISION")
+
+# HFS Knowledge and EphemerAI deliberately share one immutable resident alias.
+# This Q6 alias forces all 66 GPU-offloadable layers because Ollama 0.32.15's
+# automatic placement conservatively selected only 58/66 layers.
+PINNED_LLM_MODEL_NAME = "hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072"
+PINNED_LLM_MODEL_SOURCE = "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M"
+PINNED_LLM_MODEL_DIGEST = (
+    "44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d"
+)
+PINNED_LLM_MODEL_FAMILY = "qwen35"
+PINNED_LLM_MODEL_PARAMETER_SIZE = "27.3B"
+PINNED_LLM_MODEL_QUANTIZATION = "Q6_K"
+PINNED_LLM_REQUIRED_CAPABILITIES = frozenset({"completion", "thinking", "vision"})
 
 
 def _float_env(name: str, default: float) -> float:
@@ -75,18 +86,34 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return default
 
 
+def _pinned_text_env(name: str, expected: str) -> str:
+    """Return a fixed setting and fail fast when an environment value tries to retarget it."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return expected
+    configured = raw.strip()
+    if configured != expected:
+        raise RuntimeError(f"{name} is pinned to {expected!r}; received {configured!r}")
+    return expected
+
+
 TIKA_TIMEOUT_S = _int_env("TIKA_TIMEOUT_S", 15)
-LLM_CONTEXT_TOKENS = _int_env_optional("LLM_CONTEXT_TOKENS")
+LLM_MODEL_NAME = _pinned_text_env("LLM_MODEL_NAME", PINNED_LLM_MODEL_NAME)
+LLM_CONTEXT_TOKENS = _int_env("LLM_CONTEXT_TOKENS", 131072)
 LLM_OUTPUT_RESERVE_TOKENS = _int_env("LLM_OUTPUT_RESERVE_TOKENS", 32768)
 LLM_REQUEST_TIMEOUT_S = _float_env("LLM_REQUEST_TIMEOUT_S", 1800.0)
 LLM_MAX_RETRIES = _int_env("LLM_MAX_RETRIES", 0)
-LLM_TEMPERATURE = _float_env("LLM_TEMPERATURE", 0.7)
-LLM_TOP_P = _float_env("LLM_TOP_P", 0.8)
-LLM_PRESENCE_PENALTY = _float_env("LLM_PRESENCE_PENALTY", 1.5)
-LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "none").strip() or "none"
-LLM_THINKING_EFFORT = os.getenv("LLM_THINKING_EFFORT", "high").strip() or "high"
+LLM_TEMPERATURE = _float_env("LLM_TEMPERATURE", 1.0)
+LLM_TOP_P = _float_env("LLM_TOP_P", 0.95)
+LLM_PRESENCE_PENALTY = _float_env("LLM_PRESENCE_PENALTY", 0.0)
+LLM_REASONING_EFFORT = _pinned_text_env("LLM_REASONING_EFFORT", "medium")
+# Ollama's OpenAI-compatible endpoint uses ``reasoning_effort``.  For Qwen3.8,
+# its highest supported OpenAI-compatible value is ``xhigh``; native Ollama
+# callers use ``think: \"max\"`` instead.  Keep this distinction explicit so the
+# UI does not rely on the generic OpenAI ``max`` spelling for this Qwen template.
+LLM_THINKING_EFFORT = _pinned_text_env("LLM_THINKING_EFFORT", "xhigh")
 LLM_SHOW_REASONING = _bool_env("LLM_SHOW_REASONING", False)
-LLM_MAX_TOKENS = _int_env_optional("LLM_MAX_TOKENS")
+LLM_MAX_TOKENS = _int_env("LLM_MAX_TOKENS", 32768)
 IMG_TOKEN_COST_DEFAULT = _int_env("IMG_TOKEN_COST_DEFAULT", 2048)
 
 
@@ -102,19 +129,19 @@ def reasoning_effort_for_turn(thinking_mode_enabled: bool) -> str:
     """
     Return reasoning effort for the current turn.
 
-    Thinking mode uses a separate operator-tunable effort value so deployments can
-    adjust quality/latency tradeoffs without source edits.
+    Thinking Mode is a one-turn UI option: default turns use explicit ``medium``
+    reasoning and selected turns use the pinned ``xhigh`` effort.
     """
     return LLM_THINKING_EFFORT if thinking_mode_enabled else LLM_REASONING_EFFORT
 
 
-def max_tokens_for_turn(thinking_mode_enabled: bool) -> Optional[int]:
+def max_tokens_for_turn(thinking_mode_enabled: bool) -> int:
     """
     Return max_tokens to send for the current turn.
 
-    In thinking mode we omit max_tokens to avoid budget starvation where hidden
-    reasoning consumes most of a small completion cap and truncates visible output.
+    Both modes use the HFS Knowledge output ceiling. ``thinking_mode_enabled`` is
+    accepted alongside ``reasoning_effort_for_turn`` to keep request construction
+    explicit at the call site.
     """
-    if thinking_mode_enabled:
-        return None
+    _ = thinking_mode_enabled
     return LLM_MAX_TOKENS

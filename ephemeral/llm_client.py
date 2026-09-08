@@ -2,10 +2,10 @@ import hashlib
 import logging
 import re
 from collections import OrderedDict
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
-import streamlit as st
 import requests
+import streamlit as st
 from openai import OpenAI
 
 from ephemeral.config import (
@@ -14,12 +14,22 @@ from ephemeral.config import (
     LLM_BASE_URL,
     LLM_CONTEXT_TOKENS,
     LLM_MAX_RETRIES,
+    LLM_MAX_TOKENS,
     LLM_MODEL_NAME,
+    LLM_PRESENCE_PENALTY,
     LLM_REQUEST_TIMEOUT_S,
     LLM_SUPPORTS_VISION,
+    LLM_TEMPERATURE,
+    LLM_TOP_P,
+    PINNED_LLM_MODEL_DIGEST,
+    PINNED_LLM_MODEL_FAMILY,
+    PINNED_LLM_MODEL_PARAMETER_SIZE,
+    PINNED_LLM_MODEL_QUANTIZATION,
+    PINNED_LLM_REQUIRED_CAPABILITIES,
     TOKEN_CACHE_MAX_ENTRIES,
     TOKENIZE_TIMEOUT_S,
     _ollama_base_url,
+    reasoning_effort_for_turn,
 )
 from ephemeral.token_budget import _heuristic_token_estimate
 
@@ -27,26 +37,65 @@ from ephemeral.token_budget import _heuristic_token_estimate
 @st.cache_data(ttl=5, show_spinner=False)
 def llm_alive() -> bool:
     """
-    Lightweight health check for the LLM backend.
-    Tries OpenAI-compatible /models endpoint first, then falls back to Ollama /api/tags.
-    Treats 401/403 as "alive" since auth errors prove the service is reachable.
+    Return True only when the required immutable alias and profile are present.
+
+    A generic Ollama health response is insufficient: EphemerAI must fail closed
+    instead of silently sending a turn to a missing or retargeted model alias.
     """
-    try:
-        base_url = LLM_BASE_URL.rstrip("/")
+    return model_matches_pinned_profile(_ollama_tags(), _ollama_show())
 
-        if base_url.endswith("/v1"):
-            models_url = base_url + "/models"
-        else:
-            models_url = base_url + "/v1/models"
 
-        r = requests.get(models_url, timeout=2)
-        if r.status_code in (200, 401, 403):
-            return True
+def _normalized_model_name(value: object) -> str | None:
+    """Normalize Ollama's implicit latest tag without accepting other retargets."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().removesuffix(":latest")
 
-        r2 = requests.get(_ollama_base_url() + "/api/tags", timeout=2)
-        return r2.ok
-    except Exception:
+
+def model_matches_pinned_profile(
+    tags_payload: dict | None, show_payload: dict | None
+) -> bool:
+    """Validate the alias's immutable manifest identity and required Q6 features."""
+    if not isinstance(tags_payload, dict) or not isinstance(show_payload, dict):
         return False
+
+    models = tags_payload.get("models")
+    if not isinstance(models, list):
+        return False
+
+    expected_name = _normalized_model_name(LLM_MODEL_NAME)
+    matches = []
+    for model in models:
+        if not isinstance(model, dict):
+            continue
+        names = (model.get("name"), model.get("model"))
+        if any(_normalized_model_name(name) == expected_name for name in names):
+            matches.append(model)
+
+    if len(matches) != 1:
+        return False
+
+    model = matches[0]
+    if model.get("digest") != PINNED_LLM_MODEL_DIGEST:
+        return False
+
+    for payload in (model, show_payload):
+        details = payload.get("details")
+        if not isinstance(details, dict):
+            return False
+        if details.get("family") != PINNED_LLM_MODEL_FAMILY:
+            return False
+        if details.get("parameter_size") != PINNED_LLM_MODEL_PARAMETER_SIZE:
+            return False
+        if details.get("quantization_level") != PINNED_LLM_MODEL_QUANTIZATION:
+            return False
+
+    capabilities = show_payload.get("capabilities")
+    if not isinstance(capabilities, list) or not all(
+        isinstance(capability, str) for capability in capabilities
+    ):
+        return False
+    return PINNED_LLM_REQUIRED_CAPABILITIES.issubset(set(capabilities))
 
 
 # ── Cached OpenAI client ──────────────────────────────────────────
@@ -61,7 +110,38 @@ def get_llm_client() -> OpenAI:
     )
 
 
+def build_chat_completion_request(
+    messages: list[dict], thinking_mode_enabled: bool
+) -> dict[str, Any]:
+    """Build the exact shared-profile request for one EphemerAI turn."""
+    return {
+        "model": LLM_MODEL_NAME,
+        "messages": messages,
+        "stream": True,
+        "temperature": LLM_TEMPERATURE,
+        "top_p": LLM_TOP_P,
+        "presence_penalty": LLM_PRESENCE_PENALTY,
+        "max_tokens": LLM_MAX_TOKENS,
+        "extra_body": {
+            "reasoning_effort": reasoning_effort_for_turn(thinking_mode_enabled),
+        },
+    }
+
+
 # ── Ollama model metadata ─────────────────────────────────────────
+@st.cache_data(ttl=5, show_spinner=False)
+def _ollama_tags() -> dict | None:
+    """Cached wrapper for Ollama /api/tags. Returns JSON dict on success."""
+    try:
+        tags_url = f"{_ollama_base_url()}/api/tags"
+        resp = requests.get(tags_url, timeout=2)
+        if resp.ok:
+            return resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logging.debug("Ollama /api/tags probe failed: %s", e)
+    return None
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _ollama_show() -> Optional[Dict]:
     """Cached wrapper for Ollama /api/show. Returns JSON dict on success, else None."""
@@ -174,28 +254,31 @@ def get_image_token_cost() -> int:
 # ── Token counting ────────────────────────────────────────────────
 def _get_token_cache() -> OrderedDict:
     """Return the session-scoped LRU token cache, creating it if needed."""
-    if "_token_count_cache" not in st.session_state:
-        st.session_state["_token_count_cache"] = OrderedDict()
+    from ephemeral.privacy import ConversationTokenCache
+    from ephemeral.session_lifecycle import conversation_payloads
 
-    cache = st.session_state["_token_count_cache"]
-
-    # Migration path for existing sessions that still have a plain dict.
-    if not isinstance(cache, OrderedDict):
-        cache = OrderedDict(cache)
+    owner = conversation_payloads()
+    cache = st.session_state.get("_token_count_cache", {})
+    if not isinstance(cache, ConversationTokenCache) or cache.owner is not owner:
+        cache = ConversationTokenCache(owner, cache)
         st.session_state["_token_count_cache"] = cache
-
     return cache
 
 
 def _cache_put(cache: OrderedDict, key: str, value: int) -> None:
-    """Insert into the token cache and evict the oldest entries when over capacity."""
-    cache[key] = value
-    cache.move_to_end(key)
+    """Insert only while the conversation is live, preserving the LRU bound."""
+    from contextlib import nullcontext
 
-    if len(cache) > TOKEN_CACHE_MAX_ENTRIES:
-        evict_count = max(1, TOKEN_CACHE_MAX_ENTRIES // 4)
-        for _ in range(evict_count):
-            cache.popitem(last=False)
+    owner = getattr(cache, "owner", None)
+    with owner._lock if owner else nullcontext():
+        if owner and owner.released:
+            return
+        cache[key] = value
+        cache.move_to_end(key)
+        if len(cache) > TOKEN_CACHE_MAX_ENTRIES:
+            evict_count = max(1, TOKEN_CACHE_MAX_ENTRIES // 4)
+            for _ in range(evict_count):
+                cache.popitem(last=False)
 
 
 def count_text_tokens(text: str) -> int:
@@ -213,9 +296,11 @@ def count_text_tokens(text: str) -> int:
     cache = _get_token_cache()
 
     key = hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
-    if key in cache:
-        cache.move_to_end(key)
-        return cache[key]
+    # Disconnect cleanup can run concurrently with token lookup.
+    with cache.owner._lock:
+        if key in cache:
+            cache.move_to_end(key)
+            return cache[key]
 
     if not ENABLE_TOKEN_BUDGETING:
         n = _heuristic_token_estimate(text)

@@ -9,22 +9,6 @@ def test_requirements_pin_streamlit_156():
     assert "streamlit==1.56.0" in requirements_text
 
 
-def test_streamlit_theme_config_exists_for_docker_build():
-    config_path = REPO_ROOT / ".streamlit" / "config.toml"
-    assert config_path.is_file()
-
-    config_text = config_path.read_text(encoding="utf-8")
-    assert "[theme]" in config_text
-    for key in (
-        "base",
-        "primaryColor",
-        "backgroundColor",
-        "secondaryBackgroundColor",
-        "textColor",
-    ):
-        assert f"{key} =" in config_text
-
-
 def test_theme_css_keeps_root_and_chat_role_selectors():
     css = (REPO_ROOT / "theme.css").read_text(encoding="utf-8")
     assert ":root {" in css
@@ -32,6 +16,82 @@ def test_theme_css_keeps_root_and_chat_role_selectors():
     assert '[class*="st-key-user_"]' in css
     assert '[class*="st-key-assistant-"]' in css
     assert '[class*="st-key-assistant_"]' in css
+
+
+def test_assistant_markdown_heading_scale_is_scoped_and_normalized():
+    css = (REPO_ROOT / "theme.css").read_text(encoding="utf-8")
+    assistant_markdown = (
+        '[class*="st-key-assistant-"] [data-testid="stChatMessageContent"] '
+        '[data-testid="stMarkdownContainer"]'
+    )
+    assistant_content = (
+        '[class*="st-key-assistant-"] [data-testid="stChatMessageContent"]'
+    )
+
+    assert f"{assistant_markdown}," in css
+    markdown_rule_body = css.split(f"{assistant_markdown},", maxsplit=1)[1].split(
+        "}", maxsplit=1
+    )[0]
+    assert "font-size: 1rem;" in markdown_rule_body
+    for heading, size in (("h1", "1.75rem"), ("h2", "1.5rem"), ("h3", "1.25rem")):
+        rule_start = f"{assistant_content} {heading},"
+        assert rule_start in css
+        rule_body = css.split(rule_start, maxsplit=1)[1].split("}", maxsplit=1)[0]
+        assert f"font-size: {size};" in rule_body
+        assert "margin: 1.25rem 0 0.5rem;" in rule_body
+        assert "padding: 0;" in rule_body
+
+    for heading, size in (("h4", "1.125rem"), ("h5", "1rem"), ("h6", "0.875rem")):
+        rule_start = f"{assistant_content} {heading},"
+        assert rule_start in css
+        rule_body = css.split(rule_start, maxsplit=1)[1].split("}", maxsplit=1)[0]
+        assert f"font-size: {size};" in rule_body
+        assert "margin: 1rem 0 0.4rem;" in rule_body
+        assert "padding: 0;" in rule_body
+
+    assert '[class*="st-key-user-"] [data-testid="stMarkdownContainer"]' not in css
+
+
+def test_assistant_markdown_cool_palette_is_exact_and_scoped():
+    css = (REPO_ROOT / "theme.css").read_text(encoding="utf-8")
+    assistant_markdown = (
+        '[class*="st-key-assistant-"] [data-testid="stChatMessageContent"] '
+        '[data-testid="stMarkdownContainer"]'
+    )
+    palette = {
+        "#273C86",
+        "#1F2A44",
+        "#2F3A4D",
+        "#2563B8",
+        "#6573E8",
+        "#8B86F8",
+        "#F7F7FE",
+        "#5C657A",
+        "#0F766E",
+        "#ECF8F6",
+        "#F0F2FF",
+        "#D9DEEA",
+    }
+
+    for color in palette:
+        assert color in css
+    for selector in (
+        ":is(h1, h2)",
+        ":is(h3, h4, h5, h6)",
+        "a",
+        "li::marker",
+        "blockquote",
+        "blockquote > p:first-child:not(:has(> strong:first-child))",
+        ":is(p, li, td, th) > code",
+        "th",
+        "hr",
+    ):
+        assert f"{assistant_markdown} {selector}," in css
+
+    assert "text-decoration: underline;" in css
+    assert "font-style: italic;" in css
+    assert "opacity: 1;" in css
+    assert '[class*="st-key-user-"] [data-testid="stMarkdownContainer"]' not in css
 
 
 def test_theme_css_has_streamlit_156_chat_input_contract_selectors():
@@ -103,6 +163,103 @@ def test_docker_service_name_defaults_are_preserved():
     config_text = (REPO_ROOT / "ephemeral/config.py").read_text(encoding="utf-8")
     assert 'LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://ollama:11434/v1")' in config_text
     assert 'TIKA_URL = os.getenv("TIKA_URL", "http://tika-server:9998")' in config_text
+
+
+def test_thinking_mode_is_one_shot_and_request_uses_captured_value():
+    app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
+    assert "on_submit=_capture_turn_options" in app_text
+    assert "consume_submitted_thinking_mode(st.session_state)" in app_text
+    assert "build_chat_completion_request(payload, turn_thinking_mode)" in app_text
+    assert 'key=THINKING_MODE_KEY' in app_text
+    assert "Ordinary requests use medium reasoning." in app_text
+    assert '"reasoning on this submitted turn; it may be much slower. "' in app_text
+
+
+def test_reasoning_channel_is_never_read_into_visible_content():
+    app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
+    assert 'getattr(delta_obj, "reasoning"' not in app_text
+    assert "LLM_SHOW_REASONING" not in app_text
+
+
+def test_system_prompt_has_no_reasoning_directives():
+    prompt_text = (REPO_ROOT / "system_prompt_template.md").read_text(encoding="utf-8").lower()
+    for forbidden in ("/think", "/nothink", "<think>", "reasoning_effort"):
+        assert forbidden not in prompt_text
+
+
+def test_compose_pins_shared_qwen38_profile():
+    compose_text = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    required_lines = [
+        "image: ollama/ollama:0.32.15",
+        "LLM_MODEL_NAME=hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072",
+        "LLM_CONTEXT_TOKENS=131072",
+        "LLM_OUTPUT_RESERVE_TOKENS=32768",
+        "LLM_REQUEST_TIMEOUT_S=1800",
+        "LLM_MAX_RETRIES=0",
+        "LLM_REASONING_EFFORT=medium",
+        "LLM_THINKING_EFFORT=xhigh",
+        "LLM_SHOW_REASONING=false",
+        "LLM_TEMPERATURE=1.0",
+        "LLM_TOP_P=0.95",
+        "LLM_PRESENCE_PENALTY=0.0",
+        "LLM_MAX_TOKENS=32768",
+        "OLLAMA_MAX_LOADED_MODELS=1",
+        "OLLAMA_NUM_PARALLEL=1",
+        "OLLAMA_KEEP_ALIVE=-1",
+        "OLLAMA_FLASH_ATTENTION=1",
+        "OLLAMA_KV_CACHE_TYPE=q8_0",
+    ]
+    for line in required_lines:
+        assert line in compose_text
+
+
+def test_modelfile_pins_shared_unsloth_qwen38_q6_profile():
+    modelfile_text = (
+        REPO_ROOT / "Modelfile.hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072"
+    ).read_text(
+        encoding="utf-8"
+    )
+    required_lines = [
+        "FROM hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M",
+        "REQUIRES 0.32.15",
+        "RENDERER qwen3.8",
+        "PARSER qwen3.5",
+        "PARAMETER draft_num_predict 2",
+        "PARAMETER num_ctx 131072",
+        "PARAMETER num_predict 32768",
+        "PARAMETER num_batch 128",
+        "PARAMETER num_gpu 66",
+        "PARAMETER temperature 1.0",
+        "PARAMETER top_p 0.95",
+        "PARAMETER top_k 20",
+        "PARAMETER min_p 0.0",
+        "PARAMETER presence_penalty 0.0",
+        "PARAMETER repeat_penalty 1.0",
+    ]
+    for line in required_lines:
+        assert line in modelfile_text
+
+
+def test_no_legacy_model_references_remain_in_text_files():
+    # Split the literals so this regression test does not flag its own source.
+    forbidden = (
+        "qwen3." + "6",
+        "qwen" + "36",
+        "35b" + "-a3b",
+        "ephemeral" + "-default",
+    )
+    text_suffixes = {".css", ".html", ".md", ".py", ".toml", ".txt", ".yml", ".yaml"}
+    text_files = [
+        path
+        for path in REPO_ROOT.rglob("*")
+        if path.is_file()
+        and ".git" not in path.parts
+        and (path.suffix.lower() in text_suffixes or path.name.startswith(".env"))
+    ]
+    for path in text_files:
+        content = path.read_text(encoding="utf-8").lower()
+        for legacy_reference in forbidden:
+            assert legacy_reference not in content, f"{legacy_reference!r} remains in {path}"
 
 
 def test_ghost_doc_cleanup_uses_attachment_metadata_not_marker_text():

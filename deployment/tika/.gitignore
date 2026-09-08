@@ -1,0 +1,6 @@
+*.jar
+*.asc
+*.sha512
+KEYS
+.gnupg/
+signature-status.txt

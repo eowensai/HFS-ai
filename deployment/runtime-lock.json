@@ -1,0 +1,41 @@
+{
+  "recorded_date": "2026-09-08",
+  "compose_project": "ephemeral-llm",
+  "model_alias": "hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072",
+  "model_manifest_sha256": "44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d",
+  "model_manifest_path": "models/manifests/registry.ollama.ai/library/hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072/latest",
+  "images": {
+    "ephemeral-app": {
+      "ref": "ephemeral-llm-ephemeral-app:latest",
+      "id": "sha256:c7e0d7fd744261447296e17b0a43dfd735a9f8b71ded44949d99ab3829e986f4"
+    },
+    "tika-server": {
+      "ref": "shared-tika:3.3.2-20260907",
+      "id": "sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c"
+    },
+    "ollama": {
+      "ref": "ollama/ollama:0.32.15",
+      "id": "sha256:57d60e686821ea81a7748a3ec8141308c8b8f95b27105713954abf7a6529e700"
+    }
+  },
+  "memory_bytes": {
+    "ephemeral-app": 2147483648,
+    "tika-server": 6442450944,
+    "ollama": 19327352832
+  },
+  "runtime": {
+    "wsl": "2.7.13.0",
+    "linux": "6.18.33.2-microsoft-standard-WSL2",
+    "ubuntu": "24.04.4 LTS",
+    "docker": "29.8.0",
+    "compose": "5.1.3",
+    "containerd": "2.3.4",
+    "runc": "1.5.1",
+    "nvidia_driver": "610.88",
+    "gpus": "2 x RTX 5060 Ti 16 GiB",
+    "streamlit": "1.56.0",
+    "pillow": "12.3.0",
+    "tika": "3.3.2",
+    "ollama": "0.32.15"
+  }
+}

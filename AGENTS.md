@@ -23,18 +23,18 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
 - `ephemeral/llm_client.py` — Ollama/OpenAI client helpers, model metadata probes, and token counting.
 - `ephemeral/stream_filter.py` — Stateful think-block/thought-channel stream filter.
 - `ephemeral/token_budget.py` — Token estimation helpers.
+- `ephemeral/turn_options.py` — Pure one-shot composer-option state helpers.
 - `docker-compose.yml` — Stack definition. Pins Ollama and Tika image versions.
 - `Dockerfile` — Builds the Streamlit app container image.
 - `requirements.txt` — Python dependencies (installed inside the app container).
-- `requirements-dev.txt` — Development-only test dependencies (pytest/coverage).
+- `requirements-dev.txt` — Development-only test/lint dependencies.
 - `tests/` — Pytest suite for import-safe utility modules.
 - `System Deployment Guide.md` — End-user deployment instructions (target audience: IT
   generalists, not developers). Written for WSL2 + Docker on Windows 11.
 - `README.md` — Project overview, feature list, system requirements.
 - `system_prompt_template.md` — LLM system prompt template. The default template is
   model-agnostic and omits `<|think|>`.
-- `.streamlit/config.toml` — Streamlit theme and config. The Dockerfile merges server
-  settings into this file at build time.
+- `.streamlit/config.toml` — Streamlit theme and config. Server protections and theme are versioned together; the Dockerfile does not overwrite them.
 - `theme.css` — Custom CSS loaded by the app.
 - `.gitignore` — Git hygiene for local/dev artifacts (venvs, caches, editor files, secrets).
 - `.dockerignore` — Docker build-context hygiene to keep non-runtime files out of images; must not exclude `.streamlit/config.toml`.
@@ -46,10 +46,14 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
 - The app runs inside Docker. Environment variable defaults in `ephemeral_app.py` MUST
   use Docker service names (`http://ollama:11434/v1` and `http://tika-server:9998`),
   NOT `localhost`. Using localhost as defaults will break the Docker Compose deployment.
-- The default LLM model is `ephemeral-default` (`LLM_MODEL_NAME=ephemeral-default` in
-  `docker-compose.yml`). The alias should be created from `qwen3.6:35b-a3b`.
-- The app detects model capabilities (vision support, context size) at runtime via
-  Ollama's `/api/show` endpoint, so it adapts to different models automatically.
+- The only supported active LLM model is the shared local alias
+  `hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072`, created from
+  `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M`. Keep `LLM_MODEL_NAME` pinned to that
+  alias; do not suggest arbitrary model retargeting as an operator workaround.
+- The app uses Ollama's `/api/tags` endpoint to require the immutable production
+  manifest digest and `/api/show` to verify Q6 metadata and supported capabilities.
+  `details.parent_model` is construction history and is not a stable identity check.
+  A generic healthy Ollama endpoint or a different installed model is not sufficient.
 
 ## Runtime and Branding Targets
 - Target runtime is Python 3.10+.
@@ -83,25 +87,39 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
 - Do not hide the sidebar with aggressive mobile CSS; let Streamlit handle responsive
   sidebar behavior.
 
-## Qwen3.6 Defaults (Target Behavior)
-- `Qwen3.6-35B-A3B` is the default target model, exposed through the local Ollama alias
-  `ephemeral-default`.
-- Run Qwen in **non-thinking mode** by default. EphemerAl request defaults should be:
-  - `reasoning_effort="none"`
-  - `temperature=0.7`
-  - `top_p=0.8`
-  - `presence_penalty=1.5`
+## Qwen3.8 Fixed Profile (Target Behavior)
+- `Qwen3.8-27B` using Unsloth `UD-Q6_K_M` is the sole active target model, exposed
+  through the shared local Ollama alias
+  `hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072`. HFS Knowledge and EphemerAI
+  use that one alias and one resident Ollama runner. Ollama 0.32.15 must receive
+  `num_gpu=66`; automatic placement selected only 58/66 layers for this quant.
+- Run Qwen with **medium reasoning** by default. EphemerAI request defaults are:
+  - `reasoning_effort="medium"`
+  - `temperature=1.0`
+  - `top_p=0.95`
+  - `presence_penalty=0.0`
+  - timeout `1800` seconds
+  - retries `0`
+  - output limit `32768`
+- The Thinking Mode switch uses the explicit highest OpenAI-compatible effort
+  `LLM_THINKING_EFFORT=xhigh` for that turn. Native Ollama callers use
+  `think: "max"`; it must not change the default for later turns or new chats.
 - The Ollama alias `Modelfile` should define:
+  - `FROM hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M`
+  - `REQUIRES 0.32.15`
+  - `RENDERER qwen3.8`
+  - `PARSER qwen3.5`
   - `PARAMETER num_ctx 131072`
-  - `PARAMETER num_predict -1`
-  - `PARAMETER temperature 0.7`
-  - `PARAMETER top_p 0.8`
+  - `PARAMETER num_predict 32768`
+  - `PARAMETER num_batch 128`
+  - `PARAMETER num_gpu 66`
+  - `PARAMETER draft_num_predict 2`
+  - `PARAMETER temperature 1.0`
+  - `PARAMETER top_p 0.95`
   - `PARAMETER top_k 20`
-  - `PARAMETER min_p 0`
+  - `PARAMETER min_p 0.0`
+  - `PARAMETER presence_penalty 0.0`
   - `PARAMETER repeat_penalty 1.0`
-- Do **not** put `presence_penalty` in the Modelfile unless the installed Ollama
-  version explicitly supports it. Keep `presence_penalty` request-level for EphemerAl
-  and OpenAI-compatible clients.
 
 ## Context and Output Policy
 - `PARAMETER num_ctx` in the alias Modelfile is the source of truth for actual Ollama
@@ -109,16 +127,21 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
 - `LLM_CONTEXT_TOKENS` is only EphemerAl's document-budgeting hint.
 - `OLLAMA_CONTEXT_LENGTH` is not the primary approach for this stack because Ollama may
   become a shared API backend.
-- `num_predict -1` avoids an Ollama-side artificial output cap.
-- EphemerAl should not send `max_tokens` unless `LLM_MAX_TOKENS` is explicitly set.
+- `PARAMETER num_ctx 131072` and `LLM_CONTEXT_TOKENS=131072` must remain aligned.
+- `PARAMETER num_predict 32768` is the Ollama-side output ceiling.
+- EphemerAI sends `max_tokens=32768` on both default medium-reasoning and maximum-reasoning
+  turns, matching the alias-level `num_predict` ceiling.
 - `LLM_OUTPUT_RESERVE_TOKENS` reserves input budget for large responses; it is not an
   output cap.
 
 ## Reasoning / Thinking Policy
-- Qwen3.6 thinking should be disabled via runtime/API controls, not prompt text.
+- Qwen3.8 uses medium reasoning by default through explicit
+  `reasoning_effort="medium"`, not prompt text.
+- The Thinking Mode switch must select `LLM_THINKING_EFFORT=xhigh` only for the current
+  turn. Do not send the native-only `max` value through the OpenAI-compatible route.
 - Do not add `/nothink`, `<think>`, or "think step by step" to the system prompt.
-- EphemerAl should discard streamed reasoning deltas unless
-  `LLM_SHOW_REASONING=true`.
+- EphemerAI must always discard streamed reasoning deltas. Keep
+  `LLM_SHOW_REASONING=false`; it must not expose chain-of-thought.
 - Keep think-block stripping as defense-in-depth.
 
 ## Shared API Backend Policy
@@ -127,19 +150,21 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
   override.
 - Keep `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1` unless capacity testing
   proves otherwise.
-- Shared API users should call model `ephemeral-default`.
+- Shared API users should call only model
+  `hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072`.
 - External OpenAI-compatible clients should send:
-  - `reasoning_effort="none"`
-  - `temperature=0.7`
-  - `top_p=0.8`
-  - `presence_penalty=1.5`
+  - `reasoning_effort="medium"`
+  - `temperature=1.0`
+  - `top_p=0.95`
+  - `presence_penalty=0.0`
+  - `max_tokens=32768`
 
 ## Review Guidelines
 When reviewing Codex changes, treat the following as high-priority checks:
 - privacy regressions
 - accidental logging of prompts, uploaded documents, or model output
 - Docker networking exposure changes
-- loss of non-thinking behavior
+- loss of medium-reasoning-by-default behavior or the per-turn maximum-reasoning switch
 - incorrect context/output budgeting
 - broken copy-paste commands in deployment docs
 - changes that regress Streamlit 1.56 UI migration compatibility
@@ -151,8 +176,9 @@ When reviewing Codex changes, treat the following as high-priority checks:
 - Verify linting: `ruff check .`
 - Verify Markdown links resolve: all relative links in README.md and the deployment
   guide should point to files that exist in the repo.
-- Full stack test: `docker compose up -d --build` inside WSL2, then access
-  `http://localhost:8501`.
+- On a host with the shared HFS backend, rebuild/recreate only EphemerAI with
+  `docker compose up -d --build --no-deps --force-recreate ephemeral-app`, then access
+  `http://localhost:8501`. Do not use a full-stack recreation as an app test.
 - Keep pure utility modules import-safe (`config`, `export`, `stream_filter`,
   `token_budget`): no Streamlit imports or Streamlit side effects at import time, so
   tests run without Streamlit.
@@ -164,11 +190,13 @@ When reviewing Codex changes, treat the following as high-priority checks:
   - file-upload chat
   - long assistant response rendering/streaming
   - mobile viewport behavior
-  - backend-unavailable state (Ollama or Tika down)
+  - backend-unavailable state, but only during an approved backend maintenance window
 
 ## Do Not
 - Do not change environment variable defaults in `ephemeral_app.py` to use `localhost`.
   The defaults MUST remain Docker service names for container-to-container communication.
+- Do not pull, delete, or recreate models or restart/reconfigure shared Ollama or Tika
+  merely to deploy or test EphemerAI.
 - Do not remove Docker, WSL2, or Linux content from the deployment guide or README.
   That is the supported deployment path.
 - Do not modify `system_prompt_template.md` unless changing the LLM's system behavior.
@@ -215,3 +243,18 @@ You may also run:
   - `artifacts/ui-smoke/home-mobile.png`
 - Do not add Playwright, Selenium, Chrome, Chromium, WebKit, or browser binaries unless the user explicitly asks for browser automation in that PR.
 - If browser automation/testing is unavailable in the Codex container, report that clearly as a manual smoke-test item instead of silently skipping validation or adding dependencies.
+
+
+## Recovery publication
+
+- This GitHub repository is `eowensai/HFS-ai`; the local deployed checkout may still
+  have an older EphemerAl remote. Do not rewrite that remote as a publication step.
+- `deployment/runtime-lock.json` records the accepted recovery identities.
+- `scripts/recovery.py` captures only the selected model manifest/blobs and service
+  images. Never include HFS Knowledge code, documents, databases, logs or credentials
+  in this repository or its EphemerAI recovery archive.
+- Repository updates are staged separately from live services. Do not deploy or
+  restart shared services merely to publish documentation or a review branch.
+- Homepage screenshots must show an empty isolated session and the actual UI.
+  The root `Ephemeral Screenshot.jpg` is the published documentation asset;
+  `artifacts/ui-smoke/` remains disposable test output.
