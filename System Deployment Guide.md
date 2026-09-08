@@ -5,25 +5,26 @@ It also explains safe updates when HFS Knowledge already shares its backend.
 Commands marked **PowerShell (Admin)** run on Windows. Commands marked **Ubuntu**
 run inside WSL. Do not run fresh-host installation steps on a working shared host.
 
-## 1. Choose the right path
+## 1. What you will install
 
-| Situation | Start here |
-|---|---|
-| Working host, update EphemerAI only | [App-only update](#8-update-or-stop-an-existing-installation) |
-| Replacement host with the recovery archives | Install prerequisites below, then [restore assets](#4-restore-the-exact-images-and-model) |
-| Source repository only, no recovery archives | Read [source-only recovery limits](docs/RECOVERY.md#source-only-recovery) first |
+This is a source-only installation. Clone/download this repository, install the
+prerequisites, build the application and maintained Tika image, and download the
+correct Unsloth quant from Hugging Face. No saved model or container archive is
+required. Internet access is needed during setup; inference stays local afterward.
 
-The repository contains no HFS Knowledge application or operational data.
-A fresh standalone EphemerAI installation works without HFS. The required alias
-keeps its shared name either way. If HFS is installed separately, coordinate all
-Ollama/Tika, Docker, GPU and WSL maintenance with its operator.
+The repository contains no HFS Knowledge application or operational data. A fresh
+standalone EphemerAI installation works without HFS. The model alias keeps its
+shared name either way. If HFS is separately installed, coordinate all backend,
+Docker, GPU and WSL maintenance with its operator. Existing installations should
+use [the app-only update procedure](#8-update-or-stop-an-existing-installation).
 
 ## 2. Prepare Windows, WSL and the GPU
 
 The measured host uses Windows 11, 64 GiB RAM, two RTX 5060 Ti 16 GiB cards, and
 about 30 GiB RAM allocated to WSL. Keep at least 30 GiB available to WSL and adequate
 Windows headroom; smaller hosts are not certified for this model profile. Allow
-at least 100 GiB free disk for images, the model, builds and a recovery copy.
+at least 70 GiB free disk for the model, container images and build workspace.
+The small repository ZIP excludes those installation downloads.
 
 Install a current supported NVIDIA **Windows** driver. Do not install a Linux
 display driver inside WSL. The verified driver was 610.88. In PowerShell, check:
@@ -107,9 +108,18 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
   sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 sudo apt update
 sudo apt install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
+sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
 sudo systemctl restart docker
 ```
+
+The existing host uses NVIDIA as Docker's default runtime and the daemon's
+`json-file` logs are bounded to 10 MB × 3 files. Merge those log settings from
+[the daemon example](deployment/docker-daemon.example.json) using
+`sudoedit /etc/docker/daemon.json`; preserve the runtime entry written by
+`nvidia-ctk` and any unrelated settings. Restart Docker on this new host after
+editing. The Compose services override daemon logging as appropriate: no Tika or
+Ollama Docker logs, and bounded app logs. The observed toolkit/libnvidia-container
+version was 1.19.0; use a supported signed version, not an old vulnerable package.
 
 Verify before proceeding:
 
@@ -117,15 +127,15 @@ Verify before proceeding:
 docker version
 docker compose version
 docker info -f '{{ .DriverStatus }}'
-docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi
+docker run --rm --gpus all --memory=256m --memory-swap=256m --ulimit core=0 \
+  --entrypoint nvidia-smi ollama/ollama:0.32.15
 ```
 
-Require `driver-type io.containerd.snapshotter.v1` from `docker info`. The saved
-images use OCI indexes, so exact restoration requires the containerd image store
-(default for fresh Docker Engine 29+ installs). An upgraded legacy store can lose
-the recorded index identities. If this check differs on a **new recovery host**,
-follow [Docker's image-store instructions](https://docs.docker.com/engine/storage/containerd/)
-before loading assets. Do not switch a working shared host as a setup shortcut.
+Require `driver-type io.containerd.snapshotter.v1` from `docker info`. The current
+installation uses the containerd image store (default for fresh Docker Engine 29+
+installs), including its OCI image indexes/digest identities. If this check differs
+on a **new host**, follow [Docker's image-store instructions](https://docs.docker.com/engine/storage/containerd/)
+before building and pinning service images. Do not switch a working shared host as a setup shortcut.
 
 These instructions use Docker Engine **inside Ubuntu**, not a second Docker
 Desktop daemon. Use one daemon for this stack. Official references:
@@ -133,73 +143,134 @@ Desktop daemon. Use one daemon for this stack. Official references:
 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
 [WSL systemd](https://learn.microsoft.com/en-us/windows/wsl/systemd).
 
-## 4. Restore the exact images and model
+## 4. Get the source and build the services
 
-Obtain the repository branch/merged `main` from
-[github.com/eowensai/HFS-ai](https://github.com/eowensai/HFS-ai). It is currently
-private: authenticate with your normal GitHub account or download the ZIP in the
-web UI. Never embed a token in a clone command or commit it.
-
-In **Ubuntu**, after authentication:
+The private repository is [eowensai/HFS-ai](https://github.com/eowensai/HFS-ai).
+Use your normal GitHub account or download its ZIP; never embed a token in a clone
+command. In **Ubuntu**:
 
 ```bash
 git clone https://github.com/eowensai/HFS-ai.git ~/ephemeral-llm
 cd ~/ephemeral-llm
 ```
 
-Before the recovery branch is merged, select that branch in GitHub's ZIP download
-or run `git switch recovery/current-system-2026-09-08` after cloning. Do not
-accidentally deploy the older `main` snapshot.
-Compose explicitly names the project `ephemeral-llm`, preserving its model-volume
-and network identities regardless of the checkout folder name.
+Before this update is merged, run `git switch recovery/current-system-2026-09-08`,
+or select that branch in the GitHub ZIP menu. Keep the entire extracted repository,
+including hidden files such as `.streamlit/config.toml`. Compose fixes the project
+name at `ephemeral-llm`, so its volume/network names do not depend on the ZIP folder.
 
-Transfer the separately retained recovery `assets/` directory to the new host.
-It contains `runtime-images.tar`, `model.tar`, `assets.json` and `SHA256SUMS`.
-Set this shell variable to its actual path:
-
-```bash
-RECOVERY_ASSETS=/mnt/d/HFS-ai-recovery/assets
-python3 scripts/recovery.py verify "$RECOVERY_ASSETS"
-python3 scripts/recovery.py restore-assets "$RECOVERY_ASSETS"
-```
-
-`/mnt/d/...` is an example backup-drive path; replace it before running. Restore
-refuses any existing `ephemeral-app`, `ollama` or `tika-server` container and refuses
-an existing `ephemeral-llm_ollama-models` volume. It verifies archive checksums,
-model artifact names/types/content hashes, and loaded image identities. It creates
-only the absent model volume and starts no inference service. Never delete an
-existing volume to get past this check; use a genuinely fresh recovery host.
-
-Build the core-dump policy before **any** container is started:
+For a **fresh installation**, first build the no-dump policy, download the signed
+Tika jar and build the maintained parser image:
 
 ```bash
 sh deployment/privacy/build-nodump.sh
-docker compose config -q
+bash deployment/tika/fetch-artifact.sh
+docker build -t shared-tika:3.3.2-local deployment/tika
+docker pull ollama/ollama:0.32.15
 ```
 
-The compiled library is generated locally and is not a Git asset. It uses the
-containers' existing libc and is mounted read-only. A zero core-file size limit
-alone is insufficient for WSL's piped crash handler. The library sets process
-dumpability to zero too. Reverify after image or architecture changes.
+The generated library is small and intentionally not committed. It must exist
+before service creation. It sets process dumpability and core limits to zero;
+core-file size limits alone do not stop WSL's piped crash handler.
 
-The saved model manifest preserves the **exact** accepted alias identity.
-The Modelfile is included for understanding/reviewed rebuilding; a new alias made
-from an upstream mutable tag is not guaranteed to produce the same digest. Do not
-weaken the application's identity check to make a mismatched model start.
+The Tika recipe preserves the official full image's OCR/fonts/native tools, updates
+Ubuntu 26.04 packages, requires released Java 21.0.12, and verifies Apache Tika 3.3.2
+by checksum and signature. Package repositories can advance: if the Java assertion
+fails, review the new supported release before updating the version assertion.
+See [Tika build details](deployment/tika/README.md). Do not use the old Ubuntu 25.04
+Tika image merely because it has an easier Docker Hub tag.
 
-## 5. Start the recovered stack and verify it
-
-On this **new host**, start the restored images without a build or pull:
+Inspect the newly built image without starting a parser or publishing ports:
 
 ```bash
-docker compose up -d --no-build --pull never ollama tika-server ephemeral-app
-python3 scripts/verify_runtime.py
+docker run --rm --runtime=runc --network none --memory 512m --memory-swap 512m \
+  --ulimit core=0 --entrypoint sh shared-tika:3.3.2-local -c \
+  'cat /etc/os-release; java -version; tesseract --list-langs'
 ```
 
-The verifier checks effective cgroup memory/swap values, bounded tmpfs settings,
-core limits, accepted backend images, model manifest and CORS/XSRF/disconnect
-settings. It makes no inference request. Check container states with
-`docker compose ps`. Tika may need several seconds to initialize.
+Require Ubuntu 26.04, released Java 21.0.12, and OCR data `eng`, `deu`, `fra`, `ita`,
+`jpn`, `spa`, `osd`. A local rebuild has its own image digest. Record that digest in
+an ignored `.env` rather than pretending it is byte-identical to the old host's
+image. The following **fresh-install-only** command refuses an existing `.env`:
+
+```bash
+python3 - <<'PY_PIN'
+import subprocess
+from pathlib import Path
+image_id = subprocess.check_output(
+    ['docker', 'image', 'inspect', 'shared-tika:3.3.2-local', '--format', '{{.Id}}'],
+    text=True).strip()
+assert image_id.startswith('sha256:') and len(image_id) == 71
+with Path('.env').open('x') as f:
+    f.write('TIKA_IMAGE=shared-tika:3.3.2-local@' + image_id + '\n')
+print('Pinned the local Tika image in .env')
+PY_PIN
+docker compose config -q
+docker compose build ephemeral-app
+```
+
+On an existing host, preserve `.env`; only update its `TIKA_IMAGE` after an accepted
+parser build and a shared maintenance window. Without that variable, Compose
+retains the original deployed digest. It never silently pulls an arbitrary Tika tag.
+
+## 5. Download the model, create its alias, and start the app
+
+The required download is **Unsloth Qwen3.8-27B UD-Q6_K_M**. It includes the BF16
+vision projector. Do not select the model card's example Q4 quant, ordinary Q6_K,
+a different Qwen version, or a separate draft model. The embedded MTP tensors are
+already in the required GGUF.
+
+Only on this new installation, start Ollama and Tika, then pull the model:
+
+```bash
+docker compose up -d --no-build --pull never ollama tika-server
+docker exec ollama ollama pull hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M
+```
+
+The model download is about 24 GB. It goes into Docker's model volume, not Git or
+the source ZIP. These are the verified upstream files:
+
+| File on Hugging Face | Size | SHA-256 |
+|---|---:|---|
+| `Qwen3.8-27B-UD-Q6_K_M.gguf` | 23,088,409,504 bytes | `493301830a596b8ad56dc1329f80bbcb578c8e910da395feafdc9cd8263430bb` |
+| `mmproj-BF16.gguf` | 931,146,432 bytes | `83ee4f4f205fa514161778c41df1ea14144faa0f713510893b63c2395f5c2d53` |
+
+[Unsloth model repository](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF) ·
+[Hugging Face's Ollama instructions](https://huggingface.co/docs/hub/en/ollama).
+
+Create the profile and shared alias in the same two steps used by the current
+installation. The intermediate name is construction history stored in the manifest;
+changing it produces a different manifest digest even when the weights match.
+These aliases share the same downloaded blobs, so they do not duplicate the model
+or start extra GPU runners. Run these commands only on the fresh installation:
+
+```bash
+docker cp Modelfile.hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072 ollama:/tmp/ephemerai-profile.Modelfile
+docker exec ollama ollama create hfs-benchmark-qwen3.8-27b-ud-q6km-131072-force66 -f /tmp/ephemerai-profile.Modelfile
+docker exec ollama sh -c 'sed "s|^FROM .*|FROM hfs-benchmark-qwen3.8-27b-ud-q6km-131072-force66|" /tmp/ephemerai-profile.Modelfile > /tmp/ephemerai-shared.Modelfile'
+docker exec ollama ollama create hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072 -f /tmp/ephemerai-shared.Modelfile
+docker exec ollama sh -c 'echo "44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d  /root/.ollama/models/manifests/registry.ollama.ai/library/hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072/latest" | sha256sum -c -'
+```
+
+Require `OK` from the last command before starting EphemerAI. This two-step recipe
+was checked with Ollama 0.32.15 against the current public HF metadata and recreated
+the exact accepted digest in isolation. It retains 66 GPU layers, 131072 context,
+32768 output, batch 128, embedded MTP 2, and the configured sampling profile.
+If an upstream tag changes and the hash differs, stop and compare the file hashes,
+Ollama version, template and recipe. Do not disable the app's identity check. The
+[small manifest reference](deployment/model/manifest.json) contains no weights.
+
+Now start only the application and verify the effective settings:
+
+```bash
+docker compose up -d --no-build --no-deps --pull never ephemeral-app
+python3 scripts/verify_runtime.py
+docker compose ps
+```
+
+The verifier checks cgroup memory/swap, bounded tmpfs declarations, core limits,
+the locally configured Tika digest, accepted Ollama/model identities and browser/
+disconnect settings. It sends no prompt. Tika may need a few seconds to initialize.
 
 Open **http://localhost:8501** in a fresh browser window. Submit one fictional
 prompt, such as “Fictional lighthouse code is 731. Reply with the number only.”
@@ -220,10 +291,6 @@ streaming, no visible reasoning, and working Copy conversation. Click New Chat:
 messages/attachments should disappear. Test two browser sessions to confirm one
 session's reset preserves the other. On a phone/narrow window, confirm sidebar and
 composer usability. [Recorded validation and limits](docs/VALIDATION.md).
-
-If you changed the host address in the Streamlit configuration, rebuild only the
-app using the update command in section 8 after this baseline test. The saved app
-image contains the original pilot address; localhost works for initial recovery.
 
 ## 6. Configure the browser address and Windows network access
 
@@ -251,7 +318,7 @@ if (-not (Get-NetFirewallRule -DisplayName 'EphemerAI UI 8501' -ErrorAction Sile
 
 Inspect existing/overlapping rules instead of deleting them. Do not add rules or
 forwarding for Tika 9998 or Ollama 11434. The optional API Compose override remains
-available for separately reviewed use, defaulting to loopback; it is not a recovery
+available for separately reviewed use, defaulting to loopback; it is not an installation
 requirement and does not add authentication.
 
 ## 7. Restore Windows logon startup
@@ -319,17 +386,18 @@ Shared backend, Docker, driver or WSL changes require an idle maintenance window
 covering HFS and all active prototypes. Never use `docker compose down -v`, model
 removal, broad Docker pruning, or WSL unregistration as a troubleshooting shortcut.
 
-## 9. Troubleshooting and durable recovery
+## 9. Troubleshooting
 
-- A missing model or wrong digest: restore the exact selected artifacts; don't
+- A missing model or wrong digest: check the exact quant, recipe and upstream content hashes; don't
   change the allowlisted digest or use a different alias as a workaround.
 - Tika image unavailable: it is a local maintenance image, not a pullable Docker
-  Hub tag. Load the verified archive. See [Tika maintenance](deployment/tika/README.md).
+  Hub tag. Build it from the included signed-artifact recipe and pin its local digest. See [Tika maintenance](deployment/tika/README.md).
 - Missing preload library: build it before creating containers and verify the
   mounted file. Never ignore loader errors or claim RLIMIT_CORE alone is sufficient.
 - Memory failure: inspect cgroup `memory.events`, peaks and model/GPU placement.
   Keep swap disabled; use a measured capacity review rather than unlimited RAM.
 - Logs: Ollama/Tika Docker logging is disabled. The app has bounded rotated logs.
   Do not enable content logging or paste real documents/prompts into diagnostic tools.
-- Lost machine: Git supplies source and instructions, not large artifacts or HFS
-  data. Keep a verified recovery archive on another device/service. [Recovery guide](docs/RECOVERY.md).
+- Lost machine: clone/download this repository and follow the fresh installation
+  steps, including redownloading the model. HFS Knowledge has its own installation
+  and intentionally persistent data; it is outside this repository.

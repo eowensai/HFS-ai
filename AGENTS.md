@@ -245,16 +245,17 @@ You may also run:
 - If browser automation/testing is unavailable in the Codex container, report that clearly as a manual smoke-test item instead of silently skipping validation or adding dependencies.
 
 
-## Recovery publication
+## Source publication and installation
 
-- This GitHub repository is `eowensai/HFS-ai`; the local deployed checkout may still
-  have an older EphemerAl remote. Do not rewrite that remote as a publication step.
-- `deployment/runtime-lock.json` records the accepted recovery identities.
-- `scripts/recovery.py` captures only the selected model manifest/blobs and service
-  images. Never include HFS Knowledge code, documents, databases, logs or credentials
-  in this repository or its EphemerAI recovery archive.
-- Repository updates are staged separately from live services. Do not deploy or
-  restart shared services merely to publish documentation or a review branch.
-- Homepage screenshots must show an empty isolated session and the actual UI.
-  The root `Ephemeral Screenshot.jpg` is the published documentation asset;
-  `artifacts/ui-smoke/` remains disposable test output.
+- This repository is `eowensai/HFS-ai`. Do not rewrite the live checkout's remote
+  or restart production services merely to publish a source update.
+- Distribute source, configuration, tests, static assets and installation instructions.
+  Download/build model weights, containers and Tika jars during installation;
+  do not package image/model backups or HFS application data with the source ZIP.
+- `deployment/runtime-lock.json` is a dated reference. Fresh Tika builds receive
+  their own validated digest in the install's ignored `.env` as `TIKA_IMAGE`.
+  Preserve the exact model identity/profile and application fail-closed check.
+- Keep the model download and alias-creation recipe reproducible; test it in an
+  isolated metadata-only environment without changing the production model store.
+- Capture the homepage from an empty isolated browser session. Publish only the
+  root `Ephemeral Screenshot.jpg`; disposable browser artifacts remain ignored.

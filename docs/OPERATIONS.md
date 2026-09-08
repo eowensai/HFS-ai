@@ -43,8 +43,8 @@ Use `scripts/verify_runtime.py` after creation/recreation. Check cgroup
 `memory.swap.max=0` and `memory.swap.current=0`; equal Compose memory and
 memory-plus-swap values are only the requested settings, not verification.
 Keep `/tmp` and `/var/tmp` bounded and the no-dump library present. Recheck worker
-library mappings/core limits after changing images. The current helper verifies
-an app exec probe; detailed worker inspection may require a scoped elevated read.
+library mappings/core limits after changing images. The helper compares Tika against the digest pinned for this installation in Compose
+(including its `.env` setting). It verifies an app exec probe; detailed worker inspection may require a scoped elevated read.
 
 The shared model keeps CPU/GPU/KV memory across requests; New Chat does not unload
 it. Cleanup is application object release, not byte zeroization. Browser/Windows

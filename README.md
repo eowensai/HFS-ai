@@ -3,12 +3,11 @@
 EphemerAI is a local document-and-image chat application running on a Windows 11
 workstation through WSL2 and Docker. Prompts and files are processed by local
 Ollama and Apache Tika services. This repository is the **EphemerAI source and
-recovery kit for the system verified on September 8, 2026**.
+installation guide for the system verified on September 8, 2026**.
 
 ![EphemerAI homepage](Ephemeral%20Screenshot.jpg)
 
 Start with the [System Deployment Guide](System%20Deployment%20Guide.md).
-For a failed machine, use the [recovery instructions](docs/RECOVERY.md).
 The [current-system record](docs/CURRENT_SYSTEM.md) distinguishes deployed facts
 from host-specific setup choices and remaining limitations.
 
@@ -19,8 +18,8 @@ from host-specific setup choices and remaining limitations.
 - The fixed shared Qwen model definition and exact accepted model manifest.
 - Docker Compose, the signed Tika maintenance build, core-dump policy source,
   bounded RAM/tmpfs, and zero Linux container swap configuration.
-- Windows logon/WSL forwarding scripts and fresh-host, update, verification,
-  backup and restore instructions.
+- Windows logon/WSL forwarding scripts and detailed fresh-host installation,
+  app-update and verification instructions.
 
 HFS Knowledge and its V3 prototype are separate applications. Their source,
 documents, databases, jobs, answers and credentials are **not included**. They may
@@ -78,12 +77,12 @@ to the UI; that policy is not created by this repository. Docker publishes only
 replace network access control. Do not expose this deployment to the public
 internet without a separately designed authentication/TLS boundary.
 
-## Install, recover, or update
+## Install or update
 
 - **Fresh workstation:** follow the [complete setup guide](System%20Deployment%20Guide.md).
-- **Recover the exact system:** keep this repository ZIP and the separate image/model
-  archives together, off this machine. Git alone does not contain the multi-gigabyte
-  model or the locally built Tika image. [Recovery guide](docs/RECOVERY.md).
+- **Downloads during setup:** pull Ollama, build Tika from the signed Apache jar,
+  and download `unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M` from Hugging Face. Model weights
+  and container images are not part of the repository or source ZIP.
 - **Update an existing shared installation:** finish active requests, then rebuild
   only EphemerAI with `docker compose up -d --build --no-deps --force-recreate ephemeral-app`.
   Do not restart shared backends or recreate the alias as an app-update test.
@@ -103,7 +102,7 @@ python3 -m venv .venv
 pip install -r requirements.txt -r requirements-dev.txt
 python -m pytest -q
 pytest -q
-python -m py_compile ephemeral_app.py ephemeral/*.py scripts/recovery.py scripts/verify_runtime.py
+python -m py_compile ephemeral_app.py ephemeral/*.py scripts/verify_runtime.py
 ruff check .
 ```
 

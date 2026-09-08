@@ -15,6 +15,12 @@ def run(*args):
 
 
 def main():
+    compose = json.loads(subprocess.check_output(
+        ['docker', 'compose', '--project-directory', str(ROOT), '-f',
+         str(ROOT / 'docker-compose.yml'), 'config', '--format', 'json'], text=True))
+    tika_ref = compose['services']['tika-server']['image']
+    assert '@sha256:' in tika_ref, 'Tika must be pinned to the validated local build digest'
+    tika_id = tika_ref.rsplit('@', 1)[1]
     results = {}
     for name, limit in LOCK['memory_bytes'].items():
         info = json.loads(run('inspect', name))[0]
@@ -27,7 +33,8 @@ def main():
         assert not info['HostConfig']['Privileged'], f'{name}: privileged is not supported'
         if name != 'ephemeral-app':
             assert not info['HostConfig']['PortBindings'], f'{name}: backend port is published'
-            assert info['Image'] == LOCK['images'][name]['id'], f'{name}: image differs from accepted baseline'
+            expected = tika_id if name == 'tika-server' else LOCK['images'][name]['id']
+            assert info['Image'] == expected, f'{name}: image differs from configured pin'
         limits = info['HostConfig']['Ulimits'] or []
         assert any(x['Name'] == 'core' and x['Hard'] == x['Soft'] == 0 for x in limits)
         for mount in ('/tmp', '/var/tmp'):

@@ -53,7 +53,7 @@ artifacts/
 deployment/privacy/*.so
 
 # Large recovery assets stay outside Git.
-recovery-assets/
+downloads/
 *.tar
 *.tar.gz
 *.zip

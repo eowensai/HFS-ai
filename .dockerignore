@@ -59,9 +59,11 @@ requirements-dev.txt
 # Generated test artifacts
 artifacts/
 
-# Recovery tooling and documentation are not application runtime payloads.
+# Deployment documentation and local large downloads are not runtime payloads.
 docs/
-recovery-assets/
+downloads/
 *.tar
 *.tar.gz
 *.zip
+
+deployment/tika/

@@ -126,5 +126,5 @@ volume rollback is part of this procedure.
 - [Docker tmpfs limits](https://docs.docker.com/engine/storage/tmpfs/)
 - [Linux core dumps and piped-handler exceptions](https://man7.org/linux/man-pages/man5/core.5.html)
 
-For complete fresh-host recovery and off-host archive handling, use the
-[repository recovery guide](../../docs/RECOVERY.md). HFS code/data stay separate.
+For source-only fresh-host setup, use the
+[installation guide](../../System%20Deployment%20Guide.md). HFS code/data stay separate.

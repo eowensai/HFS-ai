@@ -1,13 +1,13 @@
 # Validation — September 8, 2026
 
 This publication imports the currently deployed EphemerAI application and adds a
-recovery kit. It was prepared outside the live checkout. Publication did not
+source-only installation guide. It was prepared outside the live checkout. Publication did not
 recreate production containers, change the live Git remote, alter Windows settings,
 modify the model profile, or modify HFS source/data.
 
 ## Repository checks
 
-- Both `python -m pytest -q` and `pytest -q`: **113 passed**, with two existing
+- Both `python -m pytest -q` and `pytest -q`: **99 passed**, with two existing
   Tika/pkg_resources deprecation warnings per run.
 - Python compilation, shell syntax and `docker compose config -q`: passed.
 - Existing development test environment: `pip check` passed; production dependencies
@@ -17,17 +17,10 @@ modify the model profile, or modify HFS source/data.
 - The core-dump library compiled from the included source; a disposable local
   process reported `PR_GET_DUMPABLE=0`. The build now replaces its output atomically.
 - Ruff reports **81 pre-existing findings** in imported application/tests. The new
-  recovery scripts/tests have no findings. File permissions were normalized to the
+  installation/verifier changes have no findings. File permissions were normalized to the
   intended Git modes for linting, avoiding Windows-mount executable-bit artifacts.
 - README/deployment-guide local links resolve. The homepage JPEG was captured from
   the actual deployed UI in a fresh isolated Chromium session with zero messages.
-
-Fourteen recovery tests use tiny fictional archives. They cover exact valid model
-members, corruption, incorrect size, missing/extra/duplicate members, traversal,
-symlinks, manifest mismatch, unexpected outer inventory, refusal to overwrite a
-capture destination, refusal of existing containers/production volume, and refusal
-of a legacy Docker image store before loading images. Tests do not restore to a
-production volume or start another model runner.
 
 ## Effective deployed configuration rechecked
 
@@ -42,7 +35,7 @@ The read-only `scripts/verify_runtime.py` check passed against the running servi
 It also checked core limits, bounded tmpfs declarations, private backend ports,
 backend image identities, exact model manifest, app process dumpability,
 CORS/XSRF enabled, and disconnected-session TTL zero. The host uses the containerd
-image store, matching the OCI index identities in the saved images.
+image store, with the current Tika digest matching its configured pin.
 
 ## Functional evidence from the deployed privacy remediation
 
@@ -63,16 +56,32 @@ The captured screenshot and read-only runtime checks were repeated for this
 repository publication. Real HFS documents, stored answers and databases were not
 used as publication fixtures or copied into the kit.
 
-## Recovery validation boundaries
+## Source installation checks and boundaries
 
-The separate recovery set preserves the three exact service images and only the
-selected model manifest plus its five content-addressed blobs. Archive hashes and
-all model member paths, types, sizes and hashes are verified during capture. The
-saved OCI index lists the same three identities as `deployment/runtime-lock.json`.
-Copy the set off this machine and run `scripts/recovery.py verify` on that copy.
+The current public Hugging Face manifest and file metadata match the deployed
+Unsloth UD-Q6_K_M GGUF and BF16 projector SHA-256 identities. Only 696 bytes of
+public config/parameter blobs were downloaded for the recipe check, alongside the
+small manifest. No model weights were downloaded for this publication.
 
-A full Windows replacement-host restore, Windows logon/peer-network test and fresh
-GPU cold-start drill have **not** been executed here. The deployment guide supplies
-those acceptance steps; source-only rebuilding can produce different binary
-identities. Browser/OS remnants and old disk contents remain documented limitations,
-not properties that this test suite certifies away.
+The two-step alias recipe ran successfully under Ollama 0.32.15 in a disposable,
+network-isolated container with `--runtime=runc`, no GPUs, 1 GiB RAM, zero swap and
+128 MiB tmpfs. The check used public GGUF headers and sparse temporary stand-ins
+to exercise metadata construction without copying full weights. It reproduced
+manifest `44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d`
+exactly, and `ollama ps` showed no inference runner. This checks the creation recipe;
+it is not an inference test using the stand-ins. Production model storage was
+mounted read-only. The actual model already passed the earlier functional checks.
+
+Recent task records were reviewed directly, including Tika migration, image/UI
+fixes, the corrected firewall policy and the completed WSL/Docker update checkpoint.
+The environment record lists what each contributed to the installation guide.
+
+The Tika build recipe itself was deployed and functionally validated on September 7;
+this publication did not rebuild/redeploy Tika. Source installation now pins each
+validated local build digest in `.env`; the live-host fallback digest is preserved.
+The artifact fetcher retains checksum/signer checks and adds Apache archive fallback.
+
+A complete fresh Windows install, full model redownload, GPU cold-start and new
+logon/peer-network acceptance test have not been repeated here. The guide includes
+those steps. Browser/OS remnants and previous disk contents remain outside the
+privacy guarantee. No large model/container backup is part of this deliverable.

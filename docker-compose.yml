@@ -79,8 +79,9 @@ services:
   # Apache Tika — document parsing
   # --------------------------------------------------------------------------
   tika-server:
-    # Locally built, verified maintenance image; see deployment/tika/README.md.
-    image: shared-tika:3.3.2-20260907@sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c
+    # Locally built and digest-pinned. Fresh installs set TIKA_IMAGE in .env;
+    # the fallback preserves the current host. See deployment/tika/README.md.
+    image: ${TIKA_IMAGE:-shared-tika:3.3.2-20260907@sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c}
     pull_policy: never
     container_name: tika-server
     # Equal memory and memory+swap limits prohibit Linux container swapping.
