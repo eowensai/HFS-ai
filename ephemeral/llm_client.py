@@ -4,16 +4,16 @@ import re
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 
+import httpx
 import requests
 import streamlit as st
 from openai import OpenAI
 
+from ephemeral.bounded_transport import BoundedTransport
 from ephemeral.config import (
-    ENABLE_TOKEN_BUDGETING,
     IMG_TOKEN_COST_DEFAULT,
     LLM_BASE_URL,
     LLM_CONTEXT_TOKENS,
-    LLM_MAX_RETRIES,
     LLM_MAX_TOKENS,
     LLM_MODEL_NAME,
     LLM_PRESENCE_PENALTY,
@@ -27,11 +27,10 @@ from ephemeral.config import (
     PINNED_LLM_MODEL_QUANTIZATION,
     PINNED_LLM_REQUIRED_CAPABILITIES,
     TOKEN_CACHE_MAX_ENTRIES,
-    TOKENIZE_TIMEOUT_S,
     _ollama_base_url,
     reasoning_effort_for_turn,
 )
-from ephemeral.token_budget import _heuristic_token_estimate
+from ephemeral.token_budget import ContextError, _heuristic_token_estimate
 
 
 @st.cache_data(ttl=5, show_spinner=False)
@@ -106,7 +105,8 @@ def get_llm_client() -> OpenAI:
         base_url=LLM_BASE_URL,
         api_key="not-needed",
         timeout=LLM_REQUEST_TIMEOUT_S,
-        max_retries=LLM_MAX_RETRIES,
+        max_retries=0,  # Explicit UI retry only; never duplicate a submission automatically.
+        http_client=httpx.Client(transport=BoundedTransport(), timeout=LLM_REQUEST_TIMEOUT_S),
     )
 
 
@@ -187,48 +187,44 @@ def model_supports_images() -> bool:
     return False
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def get_model_ctx() -> Optional[int]:
-    """
-    Return model context tokens for app-side budgeting.
+def resolve_context(show, running, configured=LLM_CONTEXT_TOKENS):
+    """Require alias runtime settings; never substitute the family's maximum."""
+    if not isinstance(show, dict) or not isinstance(running, dict):
+        raise ContextError('Model context metadata is unavailable. Request not sent; retry shortly.')
+    match = re.search(r'^num_ctx\s+(\d+)\s*$', show.get('parameters', ''), re.MULTILINE)
+    if not match:
+        raise ContextError('The model alias context could not be verified. Request not sent.')
+    alias_ctx = int(match.group(1))
+    if not alias_ctx or configured > alias_ctx:
+        raise ContextError('App context configuration exceeds the model alias context. Request not sent.')
+    models = running.get('models')
+    if not isinstance(models, list):
+        raise ContextError('Running context metadata is unavailable. Request not sent.')
+    matches = [m for m in models if isinstance(m, dict) and
+               _normalized_model_name(m.get('name', m.get('model'))) == _normalized_model_name(LLM_MODEL_NAME)]
+    if not matches:
+        # Observed cold start: immutable alias num_ctx is the load configuration.
+        return min(configured, alias_ctx)
+    if (len(matches) != 1 or matches[0].get('digest') != PINNED_LLM_MODEL_DIGEST or
+            matches[0].get('context_length') != alias_ctx):
+        raise ContextError('The running model context or identity differs from its alias configuration. Request not sent.')
+    return min(configured, alias_ctx)
 
-    If LLM_CONTEXT_TOKENS is set to a positive integer, that value is used first
-    as an application budgeting override (it does not change Ollama runtime model settings).
-    Otherwise, context is discovered from Ollama /api/show metadata.
-    """
-    if LLM_CONTEXT_TOKENS:
-        return LLM_CONTEXT_TOKENS
 
-    payload = _ollama_show()
-    if not payload:
-        return None
-
-    parameters = payload.get("parameters")
-    if isinstance(parameters, str):
-        match = re.search(r"\bnum_ctx\s+(\d+)", parameters)
-        if match:
-            try:
-                return int(match.group(1))
-            except Exception:
-                pass
-
-    model_info = payload.get("model_info") or {}
-
-    for key in ("num_ctx", "context_length"):
-        value = model_info.get(key)
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str) and value.isdigit():
-            return int(value)
-
-    for key, value in model_info.items():
-        if isinstance(key, str) and key.endswith(".context_length"):
-            if isinstance(value, int):
-                return value
-            if isinstance(value, str) and value.isdigit():
-                return int(value)
-
-    return None
+def get_model_ctx() -> int:
+    """Fresh per-request probes; an unavailable ps probe is not a cold start."""
+    try:
+        with requests.post(f'{_ollama_base_url()}/api/show', json={'model': LLM_MODEL_NAME}, timeout=5) as response:
+            response.raise_for_status()
+            show = response.json()
+        with requests.get(f'{_ollama_base_url()}/api/ps', timeout=5) as response:
+            response.raise_for_status()
+            running = response.json()
+        return resolve_context(show, running)
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        if isinstance(exc, ContextError):
+            raise
+        raise ContextError('Model context metadata is unavailable. Request not sent; retry shortly.') from exc
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -285,8 +281,8 @@ def count_text_tokens(text: str) -> int:
     """
     Best-effort token count for text.
 
-    If ENABLE_TOKEN_BUDGETING is on, we try Ollama /api/tokenize.
-    If unavailable or slow, we silently fall back to a heuristic.
+    Use the documented conservative UTF-8-byte estimator.
+    Full request admission is handled separately by budget_request.
 
     UX rule: this function must not show user-facing warnings.
     """
@@ -302,50 +298,9 @@ def count_text_tokens(text: str) -> int:
             cache.move_to_end(key)
             return cache[key]
 
-    if not ENABLE_TOKEN_BUDGETING:
-        n = _heuristic_token_estimate(text)
-        _cache_put(cache, key, n)
-        return n
-
-    if st.session_state.get("tokenizer_available") is False:
-        n = _heuristic_token_estimate(text)
-        _cache_put(cache, key, n)
-        return n
-
-    tokenize_url = f"{_ollama_base_url()}/api/tokenize"
-    try:
-        resp = requests.post(
-            tokenize_url,
-            json={"model": LLM_MODEL_NAME, "content": text},
-            timeout=TOKENIZE_TIMEOUT_S,
-        )
-
-        if resp.status_code == 404:
-            st.session_state["tokenizer_available"] = False
-            n = _heuristic_token_estimate(text)
-            _cache_put(cache, key, n)
-            return n
-
-        resp.raise_for_status()
-        payload = resp.json()
-
-        tokens = payload.get("tokens")
-        tokenizer_ok = True
-        if isinstance(tokens, list):
-            n = len(tokens)
-        elif isinstance(tokens, int):
-            n = tokens
-        elif isinstance(tokens, str) and tokens.isdigit():
-            n = int(tokens)
-        else:
-            tokenizer_ok = False
-            n = _heuristic_token_estimate(text)
-
-        st.session_state["tokenizer_available"] = tokenizer_ok
-        _cache_put(cache, key, n)
-        return n
-    except Exception:
-        st.session_state["tokenizer_available"] = False
-        n = _heuristic_token_estimate(text)
-        _cache_put(cache, key, n)
-        return n
+    # Verified against Ollama 0.32.15 routes: /api/tokenize is not public.
+    # No document content is sent to metadata/tokenization probes.
+    st.session_state["tokenizer_available"] = False
+    n = _heuristic_token_estimate(text)
+    _cache_put(cache, key, n)
+    return n

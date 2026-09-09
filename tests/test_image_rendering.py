@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 from streamlit.testing.v1 import AppTest
-from test_ephemeral_app import _install_synthetic_backend
+from test_ephemeral_app import _install_synthetic_backend, settle
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,6 +43,8 @@ def test_uploaded_image_reaches_real_decoder(monkeypatch, format_name, filename,
 
     calls = []
     _install_synthetic_backend(monkeypatch, calls)
+    from ephemeral import llm_client
+    monkeypatch.setattr(llm_client, "model_supports_images", lambda: True)
     payload = synthetic_image(format_name)
     upload = io.BytesIO(payload)
     upload.name, upload.type, upload.size = filename, mime, len(payload)
@@ -59,6 +61,7 @@ def test_uploaded_image_reaches_real_decoder(monkeypatch, format_name, filename,
 
     monkeypatch.setattr(Image, "open", track_decoder)
     at = AppTest.from_file(str(REPO_ROOT / "ephemeral_app.py"), default_timeout=10).run()
+    settle(at)
     assert not at.exception
     assert not at.error
     assert calls  # Submission completed using the synthetic backend.
@@ -66,10 +69,11 @@ def test_uploaded_image_reaches_real_decoder(monkeypatch, format_name, filename,
     assert at.get("imgs")
     messages = list(at.session_state["messages"])
     assert any(
-        part.get("data") == payload
+        part.get("image_url", {}).get("url", "").startswith("data:image/jpeg;base64,")
         for message in messages if isinstance(message.get("content"), list)
-        for part in message["content"] if part.get("type") == "image"
+        for part in message["content"] if part.get("type") == "image_url"
     )
+    assert upload.closed  # Original bytes are no longer retained after normalization.
     at.run()  # Stored chat history must render through the same path.
     assert not at.exception
     assert not at.error
@@ -87,4 +91,6 @@ def test_invalid_image_reports_error_without_crashing(monkeypatch):
     monkeypatch.setattr(st, "chat_input", lambda *args, **kwargs: pending.pop() if pending else None)
     at = AppTest.from_file(str(REPO_ROOT / "ephemeral_app.py"), default_timeout=10).run()
     assert not at.exception
-    assert any("couldn't display" in error.value for error in at.error)
+    settle(at)
+    assert "unavailable" in str(at.session_state["messages"])
+    assert upload.closed

@@ -109,7 +109,8 @@ ruff check .
 For browser tests, install the Playwright Chromium runtime in the development
 environment, then run `python scripts/ui_smoke.py`. Never test with real HFS data
 or restart shared services merely to test this UI. See [validation](docs/VALIDATION.md)
-for accepted checks and known lint debt.
+for the published baseline. The [reliability handoff](docs/RELIABILITY_READINESS.md)
+records the scoped candidate changes, limits, current checks and remaining lint debt.
 
 The application code is MIT-licensed; model weights and bundled upstream software
 retain their own licenses. See [LICENSE.md](LICENSE.md).

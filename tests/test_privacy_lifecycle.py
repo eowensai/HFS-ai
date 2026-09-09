@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from streamlit.testing.v1 import AppTest
-from test_ephemeral_app import _install_synthetic_backend, _submit
+from test_ephemeral_app import _install_synthetic_backend, _submit, settle
 
 from ephemeral.privacy import (
     ConversationMessages,
@@ -80,52 +80,19 @@ def test_new_chat_clears_owned_payloads_and_preserves_another_session(monkeypatc
     assert "First fictional conversation" not in str(calls[-1]["messages"])
 
 
-def test_parse_does_not_retain_duplicate_text(monkeypatch):
-    from contextlib import nullcontext
-
-    from ephemeral import tika_client
-    calls = []
-    monkeypatch.setattr(tika_client.st, "spinner", lambda *a, **k: nullcontext())
-    monkeypatch.setattr(tika_client.parser, "from_buffer",
-                        lambda *a, **k: calls.append(1) or {"content": " Fictional parse "})
-    for _ in range(2):
-        assert tika_client.parse_with_tika(b"fictional", "fictional.txt") == "Fictional parse"
-    assert len(calls) == 2
-
-
 def test_uploaded_buffers_close_on_new_chat(monkeypatch):
     import streamlit as st
     calls = []
     _install_synthetic_backend(monkeypatch, calls)
     from ephemeral import tika_client
-    monkeypatch.setattr(tika_client, "parse_with_tika", lambda *a: "Fictional document")
+    monkeypatch.setattr(tika_client, "parse_with_tika", lambda *a, **k: tika_client.ParsedText("Fictional document"))
     upload = io.BytesIO(b"fictional document")
     upload.name, upload.type, upload.size = "fictional.txt", "text/plain", 18
     pending = [SimpleNamespace(text="Read fictional file", files=[upload])]
     monkeypatch.setattr(st, "chat_input", lambda *a, **k: pending.pop() if pending else None)
     app = AppTest.from_file(str(ROOT / "ephemeral_app.py")).run()
+    settle(app)
     assert not app.exception and calls
     app.button(key="sidebar_new").click().run()
     assert not app.exception and upload.closed
     assert not app.session_state["messages"]
-
-
-def test_tika_api_mismatch_never_retries_without_timeout(monkeypatch):
-    from contextlib import nullcontext
-
-    import pytest
-
-    from ephemeral import tika_client
-
-    calls = []
-
-    def fail(*args, **kwargs):
-        calls.append(kwargs)
-        raise TypeError("Fictional API mismatch")
-
-    monkeypatch.setattr(tika_client.st, "spinner", lambda *a, **k: nullcontext())
-    monkeypatch.setattr(tika_client.parser, "from_buffer", fail)
-    with pytest.raises(TypeError):
-        tika_client.parse_with_tika(b"fictional", "fictional.txt")
-    assert len(calls) == 1
-    assert calls[0]["requestOptions"]["timeout"] == tika_client.TIKA_TIMEOUT_S

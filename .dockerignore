@@ -67,3 +67,10 @@ downloads/
 *.zip
 
 deployment/tika/
+
+# Machine-specific candidate/test/recovery material must never enter an image.
+.local/
+
+# Browser acceptance runners are test-only.
+scripts/reliability_browser.py
+scripts/reliability_failures.py

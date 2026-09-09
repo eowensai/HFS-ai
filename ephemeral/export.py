@@ -47,6 +47,16 @@ def _extract_export_info(content: Union[str, list]) -> Tuple[List[str], List[str
         if ptype == "text":
             text = part.get("text", "")
 
+            if part.get("_attachment"):
+                meta = part["_attachment"]
+                # Use application-owned metadata only; never infer names from document text.
+                label = str(meta.get("name", "Attachment")).replace("\n", " ").replace("\r", " ")
+                label = label.replace("[", "\\[").replace("]", "\\]")
+                line = f"- {label} [{meta['id'][:8]}]: {meta['status']} — {meta['reason']}"
+                (img_lines if meta.get("kind") == "image" else doc_lines).append(line)
+                continue
+            if part.get("_attachment_content"):
+                continue
             if part.get("_synthetic"):
                 ctx = text[len(CONTEXT_PREFIX) :] if text.startswith(CONTEXT_PREFIX) else text
                 blocks = re.split(r"(?m)^---\s*(.+?)\s*---\s*$", ctx)
@@ -80,6 +90,8 @@ def _extract_export_info(content: Union[str, list]) -> Tuple[List[str], List[str
                 img_lines.append(f"- 📷 {fname}")
 
         elif ptype == "image_url":
+            if part.get("_attachment_id"):
+                continue
             fname = (part.get("filename") or "image").strip()
             if fname and fname not in img_seen:
                 img_seen.add(fname)
