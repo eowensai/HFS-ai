@@ -58,29 +58,14 @@ def test_count_text_tokens_cache_hit_promotes_entry(monkeypatch):
     assert list(session["_token_count_cache"].keys()) == [key_b, key_a]
 
 
-def test_unrecognized_tokenizer_payload_marks_tokenizer_unavailable(monkeypatch):
-    """Unexpected tokenizer payloads should keep tokenizer_available=False."""
+def test_token_estimator_never_calls_an_unsupported_tokenizer_route(monkeypatch):
     from ephemeral import llm_client
-
-    class FakeResponse:
-        status_code = 200
-
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"unexpected": "shape"}
-
-    session = {
-        "_token_count_cache": OrderedDict(),
-        "tokenizer_available": None,
-    }
+    session = {"_token_count_cache": OrderedDict(), "tokenizer_available": None}
     monkeypatch.setattr(llm_client, "st", SimpleNamespace(session_state=session))
-    monkeypatch.setattr(llm_client, "ENABLE_TOKEN_BUDGETING", True)
-    monkeypatch.setattr(llm_client.requests, "post", lambda *args, **kwargs: FakeResponse())
-
-    expected = llm_client._heuristic_token_estimate("hello")
-    assert llm_client.count_text_tokens("hello") == expected
+    def unexpected_request(*a, **k):
+        pytest.fail("Text must not be sent to an unsupported tokenizer route")
+    monkeypatch.setattr(llm_client.requests, "post", unexpected_request)
+    assert llm_client.count_text_tokens("hello") == 5
     assert session["tokenizer_available"] is False
 
 

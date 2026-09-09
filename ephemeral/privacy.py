@@ -19,6 +19,11 @@ class ConversationPayloads:
                 self._owned.append(payload)
         return payload
 
+    def disown(self, payload):
+        """Release completed work without retaining superseded results until New Chat."""
+        with self._lock:
+            self._owned[:] = [item for item in self._owned if item is not payload]
+
     @staticmethod
     def _clear(payload):
         if hasattr(payload, "close"):

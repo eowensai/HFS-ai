@@ -33,3 +33,19 @@ def reset_conversation():
     st.session_state["_vision_supported"] = None
     reset_thinking_mode(st.session_state)
     prepare_conversation()
+
+
+def detach_framework_uploads(files):
+    """Drop submitted originals from Streamlit's session-specific upload manager.
+
+    Pinned Streamlit 1.56 API: remove only the current session's submitted IDs.
+    The worker owns the UploadedFile wrappers until preparation closes them.
+    """
+    from streamlit.runtime.scriptrunner import get_script_run_ctx
+    ctx = get_script_run_ctx()
+    if ctx is not None:
+        remove = getattr(ctx.uploaded_file_mgr, 'remove_file', None)
+        if remove is not None:
+            for upload in files:
+                if getattr(upload, 'file_id', None):
+                    remove(ctx.session_id, upload.file_id)

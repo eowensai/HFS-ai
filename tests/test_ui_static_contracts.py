@@ -169,7 +169,8 @@ def test_thinking_mode_is_one_shot_and_request_uses_captured_value():
     app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
     assert "on_submit=_capture_turn_options" in app_text
     assert "consume_submitted_thinking_mode(st.session_state)" in app_text
-    assert "build_chat_completion_request(payload, turn_thinking_mode)" in app_text
+    assert "request_builder=build_chat_completion_request" in app_text
+    assert "start_work(user_text, files, turn_thinking_mode)" in app_text
     assert 'key=THINKING_MODE_KEY' in app_text
     assert "Ordinary requests use medium reasoning." in app_text
     assert '"reasoning on this submitted turn; it may be much slower. "' in app_text
@@ -262,11 +263,13 @@ def test_no_legacy_model_references_remain_in_text_files():
             assert legacy_reference not in content, f"{legacy_reference!r} remains in {path}"
 
 
-def test_ghost_doc_cleanup_uses_attachment_metadata_not_marker_text():
-    app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
-    assert 'part.get("_attachment", {}).get("kind") == "document"' in app_text
-    assert 'part.get("_attachment", {}).get("name") in dropped_set' in app_text
-    assert 'startswith("\U0001f4c4 *")' not in app_text
+def test_excluded_same_name_attachments_retain_separate_status_receipts():
+    from ephemeral.attachments import exclude_content, status_part
+    parts = [status_part({'id': identity, 'name': 'same.txt', 'kind': 'document',
+                         'status': 'available'}) for identity in ('first', 'second')]
+    excluded = exclude_content(parts, 'Request too large')
+    assert [p['_attachment']['id'] for p in excluded] == ['first', 'second']
+    assert all(p['_attachment']['status'] == 'unavailable' for p in excluded)
 
 
 def test_sidebar_logo_encoding_is_cached():
@@ -291,11 +294,13 @@ def test_sidebar_state_uses_streamlit_156_pixel_width_contract():
     assert "initial_sidebar_state='auto'" not in app_text
 
 
-def test_vision_support_check_uses_current_files_and_history_guard():
-    app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
-    assert "def _message_has_image(" in app_text
-    assert "has_image_files" in app_text
-    assert "has_image_history" in app_text
-    assert '_message_has_image(m.get("content"))' in app_text
-    assert "has_image_files or has_image_history" in app_text
-    assert "cached_vision" not in app_text
+def test_vision_rechecked_for_history_and_omissions_are_explicit():
+    from ephemeral.attachments import api_messages, status_part
+    receipt = status_part({'id': 'first', 'name': 'same.png', 'kind': 'image',
+                           'status': 'available', 'reason': 'Image available'})
+    messages = [{'role': 'user', 'content': [receipt,
+        {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,AA=='}}]}]
+    assert 'data:image/png' in str(api_messages(messages, True))
+    hidden = str(api_messages(messages, False))
+    assert 'data:image/png' not in hidden
+    assert 'unavailable' in hidden and 'vision unavailable' in hidden

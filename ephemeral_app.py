@@ -1,26 +1,25 @@
-import os
 import base64
+import inspect
+import os
 import pathlib
 import string
 import uuid
-import logging
-import inspect
 from contextlib import contextmanager
 from datetime import datetime, tzinfo
 from html import escape as html_escape
-from typing import Union, List
+from typing import Union
 
-import streamlit as st
 import pytz
+import streamlit as st
+
+from ephemeral import config as cfg
+from ephemeral.clipboard import render_copy_button, render_turn_copy_button
 from ephemeral.config import (
     APP_VERSION,
-    CONTEXT_PREFIX,
     DEBUG_MODE,
-    ENABLE_TOKEN_BUDGETING,
     LLM_BASE_URL,
     LLM_CONTEXT_TOKENS,
     LLM_MODEL_NAME,
-    LLM_OUTPUT_RESERVE_TOKENS,
     LLM_PRESENCE_PENALTY,
     LLM_TEMPERATURE,
     LLM_TOP_P,
@@ -32,22 +31,26 @@ from ephemeral.export import (
     build_conversation_markdown,
     build_message_html,
     build_message_markdown,
-    build_message_text,
 )
-from ephemeral.clipboard import render_copy_button, render_turn_copy_button
-from ephemeral.stream_filter import ThinkStreamFilter, strip_think_blocks
-from ephemeral.token_budget import _heuristic_token_estimate
-from ephemeral.session_lifecycle import prepare_conversation, reset_conversation
-from ephemeral.tika_client import parse_with_tika, tika_alive
 from ephemeral.llm_client import (
     build_chat_completion_request,
-    count_text_tokens,
-    get_image_token_cost,
     get_llm_client,
     get_model_ctx,
     llm_alive,
     model_supports_images,
 )
+from ephemeral.request_lifecycle import (
+    TurnWork,
+    WorkGate,
+    record_rejected_uploads,
+    run_turn,
+)
+from ephemeral.session_lifecycle import (
+    detach_framework_uploads,
+    prepare_conversation,
+    reset_conversation,
+)
+from ephemeral.tika_client import parse_with_tika, tika_alive
 from ephemeral.turn_options import (
     THINKING_MODE_KEY,
     capture_thinking_mode_for_submission,
@@ -91,7 +94,6 @@ except ImportError:
 
 # ── Backend configuration ─────────────────────────────────────────
 DEFAULT_UPLOAD_PROMPT = os.getenv("DEFAULT_UPLOAD_PROMPT", "Please analyze the uploaded files.")
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
 def get_local_timezone() -> tzinfo:
@@ -185,6 +187,10 @@ def styled_chat_message(role: str, message_id: str = None):
 def main():
     # ── Session state ─────────────────────────────────────────────────
     payloads = prepare_conversation()
+    gate = st.session_state.setdefault("_work_gate", WorkGate())
+    work = gate.active if gate.active and gate.active.owner is payloads else None
+    busy = gate.running
+
     st.session_state.setdefault("show_welcome", True)
     st.session_state.setdefault("last_token_count", 0)
     st.session_state.setdefault("tokenizer_available", None)
@@ -245,23 +251,10 @@ def main():
                 dbg_thinking_mode = bool(st.session_state.get(THINKING_MODE_KEY, False))
                 dbg_effective_reasoning_effort = reasoning_effort_for_turn(dbg_thinking_mode)
                 dbg_effective_max_tokens = max_tokens_for_turn(dbg_thinking_mode)
-                dbg_model_ctx = get_model_ctx()
-                dbg_effective_ctx = dbg_model_ctx if dbg_model_ctx else LLM_CONTEXT_TOKENS
-                dbg_usable_ctx = int(dbg_effective_ctx * 0.95)
-                dbg_reserved_ctx = min(LLM_OUTPUT_RESERVE_TOKENS, int(dbg_effective_ctx * 0.25))
-                dbg_budget_ctx = max(4096, dbg_usable_ctx - dbg_reserved_ctx)
                 st.caption(f"App version: {APP_VERSION}")
                 st.caption(f"Model: {LLM_MODEL_NAME}")
                 st.caption(f"LLM base URL: {LLM_BASE_URL}")
-                st.caption(
-                    "Context budget: "
-                    f"{dbg_budget_ctx:,} tokens"
-                    + (
-                        f" (model ctx: {dbg_model_ctx:,})"
-                        if dbg_model_ctx
-                        else f" (fallback model ctx: {LLM_CONTEXT_TOKENS:,})"
-                    )
-                )
+                st.caption(f"Configured context ceiling: {LLM_CONTEXT_TOKENS:,}; verified before each request.")
                 st.caption(
                     "Request settings: "
                     f"temperature={LLM_TEMPERATURE}, top_p={LLM_TOP_P}, "
@@ -273,22 +266,16 @@ def main():
                     + (str(dbg_effective_max_tokens) if dbg_effective_max_tokens is not None else "not set (max_tokens omitted)")
                 )
 
-                tok_state = st.session_state.get("tokenizer_available")
-                if not ENABLE_TOKEN_BUDGETING:
-                    st.caption("Token counting: safe estimate mode (disabled by configuration)")
-                elif tok_state is True:
-                    st.caption("Token counting: Ollama tokenizer endpoint")
-                elif tok_state is False:
-                    st.caption("Token counting: safe estimate mode")
-                else:
-                    st.caption("Token counting: not checked yet")
+                st.caption("Token counting: conservative complete-request estimate (UTF-8 bytes + template/image allowances).")
 
     # ── Chat input ───────────────────────────────────────────────────
     prompt_in = st.chat_input(
         "Ask a question or attach files...",
         accept_file="multiple",
         height=68,
-        max_upload_size=50,
+        max_upload_size=min(50, max(1, cfg.MAX_UPLOAD_BYTES // (1024 * 1024))),
+        max_chars=cfg.MAX_PROMPT_BYTES,
+        disabled=busy,
         key="main_chat",
         on_submit=_capture_turn_options,
     )
@@ -311,6 +298,7 @@ def main():
                     "The switch turns off automatically afterward."
                 ),
                 key=THINKING_MODE_KEY,
+                disabled=busy,
             )
 
     # Hide the welcome shell in the same run as the first submitted prompt so
@@ -384,6 +372,9 @@ def main():
             kind = meta.get("kind", "document")
             icon = "🖼️" if kind == "image" else "📄"
             subtitle = f"{kind.title()} upload"
+            if meta.get("id"):
+                filename += f" [{meta['id'][:8]}]"
+                subtitle += f" • {meta['status']} • {meta['reason']}"
             if size_label:
                 subtitle = f"{subtitle} • {size_label}"
             st.markdown(
@@ -423,13 +414,6 @@ def main():
             st.markdown(content or "")
 
 
-    def _message_has_image(content: Union[str, list]) -> bool:
-        """Return True if a stored message content structure contains image parts."""
-        return isinstance(content, list) and any(
-            part.get("type") in {"image", "image_url"} for part in content
-        )
-
-
     # ── Render chat history ───────────────────────────────────────────
     for m in st.session_state.messages:
         with styled_chat_message(m["role"], m.get("id")):
@@ -445,386 +429,85 @@ def main():
         st.button("🔄 New Chat", key="mobile_new", width="stretch", on_click=reset_chat_session)
 
 
+    def execute(current):
+        run_turn(current, parse=parse_with_tika, model_ready=llm_alive,
+                 vision_ready=model_supports_images, context=get_model_ctx,
+                 request_builder=build_chat_completion_request, client=get_llm_client)
+
+    def start_work(text, files, thinking, retry_message=None):
+        if gate.running:
+            record_rejected_uploads(st.session_state.messages, files,
+                                    "Unavailable: a request is already active; this submission was not sent.")
+            for upload in files:
+                upload.close()
+            return
+        if gate.active:
+            payloads.disown(gate.active)
+            gate.active.clear()
+        current = TurnWork(payloads, st.session_state.messages, text, files, thinking,
+                           SYSTEM_TMPL.safe_substitute(current_time_local=timestamp_local()),
+                           DEFAULT_UPLOAD_PROMPT)
+        current.user_message = retry_message
+        current.require_display_ack = True
+        if not gate.start(current, execute):
+            record_rejected_uploads(st.session_state.messages, files,
+                                    "Unavailable: app request limit reached; this submission was not sent.")
+            current.clear()
+            payloads.disown(current)
+            st.error("The app is busy with its bounded number of active requests. Try submitting again shortly.")
+            return
+        st.rerun()
+
     if prompt_in is not None:
         user_text = prompt_in.text if hasattr(prompt_in, "text") else prompt_in
         user_text = (user_text or "").strip()
-        files = prompt_in.files if hasattr(prompt_in, "files") else []
-        for upload in files:
-            payloads.own(upload)
+        files = list(prompt_in.files) if hasattr(prompt_in, "files") else []
+        detach_framework_uploads(files)
+        if user_text or files:
+            start_work(user_text, files, turn_thinking_mode)
 
-        if not user_text and files:
-            user_text = DEFAULT_UPLOAD_PROMPT
+    if busy and work is None:
+        st.info("The previous request is still closing locally. New Chat cleared its conversation. "
+                "Stopping this UI does not confirm that backend work has stopped.")
 
-        if not user_text and not files:
-            st.stop()
-
-        if not llm_alive():
-            st.error(
-                "The required Qwen3.8 AI model is not available right now, so this request was not sent. "
-                "Please try again in a moment."
-            )
-            st.stop()
-
-        user_msg_id = str(uuid.uuid4())
-
-        with styled_chat_message("user", user_msg_id):
-            st.markdown(user_text)
-
-        sys_prompt = SYSTEM_TMPL.safe_substitute(current_time_local=timestamp_local())
-
-        has_image_files = any(getattr(f, "type", "").startswith("image/") for f in files)
-        has_image_history = any(
-            _message_has_image(m.get("content")) for m in st.session_state.messages
-        )
-
-        if has_image_files or has_image_history:
-            vision_supported = model_supports_images()
-        else:
-            vision_supported = False
-
-        prev_vision = st.session_state.get("_vision_supported")
-        if prev_vision != vision_supported:
-            st.session_state["_vision_supported"] = vision_supported
-            if prev_vision is not None:
-                st.session_state["last_token_count"] = 0
-
-        model_ctx = get_model_ctx()
-        effective_ctx = model_ctx if model_ctx else LLM_CONTEXT_TOKENS
-        usable_ctx = int(effective_ctx * 0.95)
-        reserved_ctx = min(LLM_OUTPUT_RESERVE_TOKENS, int(effective_ctx * 0.25))
-        max_ctx = max(4096, usable_ctx - reserved_ctx)
-        warn_ctx = int(max_ctx * 0.85)
-
-        image_token_cost = get_image_token_cost() if vision_supported else 0
-
-        parts: List[dict] = []
-        doc_entries: List[dict] = []
-        image_count = 0
-
-        tika_ok = tika_alive()
-        has_doc_files = any(not getattr(f, "type", "").startswith("image/") for f in files)
-        if has_doc_files and not tika_ok:
-            st.info(
-                "I can’t read documents right now, but I can still answer questions. "
-                "If you paste text from the document, I can work with that."
-            )
-
-        for f in files:
-            ftype = getattr(f, "type", "")
-            file_size = int(getattr(f, "size", 0) or 0)
-            if file_size > MAX_UPLOAD_BYTES:
-                st.error(
-                    f"{f.name} is too large ({file_size / (1024 * 1024):.1f} MB). "
-                    "The maximum file size is 50 MB."
-                )
-                continue
-
-            if ftype.startswith("image/"):
-                f.seek(0)
-                img_bytes = f.getvalue()
-                parts.append(
-                    {
-                        "type": "text",
-                        "text": f"📷 *{f.name}*",
-                        "_attachment": {"name": f.name, "size": file_size, "kind": "image"},
-                    }
-                )
-                parts.append(
-                    {
-                        "type": "image",
-                        "data": img_bytes,
-                        "mime_type": ftype or "image/jpeg",
-                        "filename": f.name,
-                        "size": file_size,
-                    }
-                )
-                image_count += 1
-                continue
-
-            # Document-like file
-            parts.append(
-                {
-                    "type": "text",
-                    "text": f"📄 *{f.name}*",
-                    "_attachment": {"name": f.name, "size": file_size, "kind": "document"},
-                }
-            )
-            if not tika_ok:
-                continue
-
-            try:
-                f.seek(0)
-                data = f.getvalue()
-                txt = parse_with_tika(data, f.name)
-
-                if txt:
-                    block = f"--- {f.name} ---\n{txt}"
-                    doc_entries.append({"name": f.name, "block": block})
-                else:
-                    st.info(
-                        f"I couldn’t extract text from {f.name}. "
-                        "If it’s a scanned PDF, try a text-based version or paste the relevant text here."
-                    )
-            except Exception as e:
-                st.info(f"I couldn’t read {f.name}. You can try uploading it again, or try a different format.")
-                if DEBUG_MODE:
-                    with st.expander(f"Details: {f.name}", expanded=False):
-                        st.code(str(e))
-
-        def compute_pending_text(entries: List[dict]) -> str:
-            """
-            Pending text used for context budgeting.
-            Intentionally ignores filename markers to avoid estimation drift and stale marker bugs.
-            """
-            chunks: List[str] = []
-            if entries:
-                doc_blocks = "\n\n".join(entry["block"] for entry in entries)
-                chunks.append(CONTEXT_PREFIX + doc_blocks)
-            if user_text:
-                chunks.append(user_text)
-            return "\n\n".join(chunks).strip()
-
-        def estimate_pending_cost(entries: List[dict]) -> int:
-            pending_text = compute_pending_text(entries)
-            text_tokens = count_text_tokens(pending_text)
-            image_tokens = (image_count * image_token_cost) if vision_supported else 0
-            return text_tokens + image_tokens
-
-        # Base tokens:
-        # - If we have last_token_count from the previous turn, use it as baseline (hybrid approach).
-        # - Otherwise use a quick heuristic for system + history to keep UI responsive.
-        if st.session_state.last_token_count == 0:
-            history_text = build_message_text(st.session_state.messages)
-            base_tokens = _heuristic_token_estimate(sys_prompt) + _heuristic_token_estimate(history_text)
-        else:
-            base_tokens = int(st.session_state.last_token_count)
-
-        pending_tokens = estimate_pending_cost(doc_entries)
-        prompt_token_estimate = base_tokens + pending_tokens
-
-        skipped_docs: List[str] = []
-        while doc_entries and prompt_token_estimate > max_ctx:
-            dropped = doc_entries.pop()
-            skipped_docs.append(dropped["name"])
-            pending_tokens = estimate_pending_cost(doc_entries)
-            prompt_token_estimate = base_tokens + pending_tokens
-
-        # Ghost doc cleanup: remove dropped doc markers from parts
-        if skipped_docs:
-            dropped_set = set(skipped_docs)
-            parts = [
-                part
-                for part in parts
-                if not (
-                    part.get("type") == "text"
-                    and part.get("_attachment", {}).get("kind") == "document"
-                    and part.get("_attachment", {}).get("name") in dropped_set
-                )
-            ]
-
-        # Build synthetic doc context
-        doc_ctx_blocks: List[str] = [entry["block"] for entry in doc_entries]
-        if doc_ctx_blocks:
-            parts.insert(
-                0,
-                {
-                    "type": "text",
-                    "text": CONTEXT_PREFIX + "\n\n".join(doc_ctx_blocks),
-                    "_synthetic": True,
-                },
-            )
-
-        if user_text:
-            parts.append({"type": "text", "text": user_text})
-
-        # Calm note about images when the model can't see them
-        if image_count > 0 and not vision_supported:
-            st.info("This AI can’t read images in this setup. If you describe what’s in the image, I can still help.")
-
-        # Store the user's message in session state now (so it doesn't disappear on reruns)
-        content_for_llm: Union[str, List[dict]] = parts if len(parts) > 1 else user_text
-        st.session_state.messages.append(
-            {
-                "id": user_msg_id,
-                "role": "user",
-                "content": content_for_llm,
-            }
-        )
-
-        # If still too large even after dropping docs, remove the just-appended oversized
-        # user turn so it doesn't poison subsequent requests, then respond as assistant and stop.
-        if prompt_token_estimate > max_ctx:
-            if st.session_state.messages:
-                last_msg = st.session_state.messages[-1]
-                if last_msg.get("role") == "user" and last_msg.get("id") == user_msg_id:
-                    st.session_state.messages.pop()
-
-            assistant_msg_id = str(uuid.uuid4())
-            error_text = (
-                "That request is too large for this AI model right now, so I omitted that oversized request "
-                "from conversation history to keep this session usable. "
-                "Try removing a few attachments, shortening your message, or starting a new conversation."
-            )
-            with styled_chat_message("assistant", assistant_msg_id):
-                st.markdown(error_text)
-            st.session_state.messages.append(
-                {
-                    "id": assistant_msg_id,
-                    "role": "assistant",
-                    "content": error_text,
-                }
-            )
-            st.stop()
-
-        if skipped_docs:
-            unique_docs = ", ".join(sorted(set(skipped_docs)))
-            st.info(
-                "To keep things within the AI’s memory, I left out these attachments: "
-                f"{unique_docs}. If you need them, try uploading fewer files at once."
-            )
-
-        if prompt_token_estimate >= warn_ctx:
-            st.info(
-                "This conversation is getting pretty long. If the AI starts to forget earlier details, "
-                "starting a new conversation usually helps."
-            )
-
-        # Convert stored messages to OpenAI-compatible payload
-        messages_for_api: List[dict] = []
-        for msg in st.session_state.messages:
-            if isinstance(msg["content"], list):
-                api_parts: List[dict] = []
-                for part in msg["content"]:
-                    ptype = part.get("type")
-
-                    if ptype == "text":
-                        api_parts.append({"type": "text", "text": part.get("text", "")})
-
-                    elif ptype == "image":
-                        if vision_supported:
-                            img_bytes = part.get("data") or b""
-                            img_b64 = part.get("b64")
-                            if not img_b64:
-                                img_b64 = base64.b64encode(img_bytes).decode()
-                            mime = part.get("mime_type", "image/jpeg")
-                            api_parts.append(
-                                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img_b64}"}}
-                            )
-
-                    elif ptype == "image_url":
-                        if vision_supported:
-                            api_parts.append(part)
-
-                # Some backends/models are stricter about content arrays:
-                # - If all parts are text, send a plain string.
-                # - If no parts remain, send a text placeholder instead of an empty array.
-                if not api_parts:
-                    messages_for_api.append({"role": msg["role"], "content": "(Attachment omitted.)"})
-                    continue
-
-                if all(part.get("type") == "text" for part in api_parts):
-                    combined_text = "\n\n".join(part.get("text", "") for part in api_parts).strip()
-                    messages_for_api.append({"role": msg["role"], "content": combined_text or "(Attachment omitted.)"})
-                    continue
-
-                messages_for_api.append({"role": msg["role"], "content": api_parts})
-            else:
-                messages_for_api.append({"role": msg["role"], "content": msg["content"]})
-
-        payload = [{"role": "system", "content": sys_prompt}, *messages_for_api]
-
-        assistant_msg_id = str(uuid.uuid4())
-
-        with styled_chat_message("assistant", assistant_msg_id):
-            with st.spinner("Generating…"):
-                try:
-                    client = get_llm_client()
-                    request_kwargs = build_chat_completion_request(payload, turn_thinking_mode)
-
-                    # Try include_usage if supported, fall back otherwise.
-                    try:
-                        stream = client.chat.completions.create(
-                            **request_kwargs,
-                            stream_options={"include_usage": True},
-                        )
-                    except TypeError:
-                        stream = client.chat.completions.create(**request_kwargs)
-                    except Exception as e:
-                        if "stream_options" in str(e) or "include_usage" in str(e):
-                            stream = client.chat.completions.create(**request_kwargs)
-                        else:
-                            raise
-
-                    acc = ""
-                    box = st.empty()
-                    used_usage_from_backend = False
-                    stream_filter = ThinkStreamFilter()
-
-                    for chunk in stream:
-                        if getattr(chunk, "choices", None):
-                            delta_obj = getattr(chunk.choices[0], "delta", None)
-                            delta = getattr(delta_obj, "content", None)
-                            # Ollama sends hidden chain-of-thought on a separate
-                            # ``reasoning`` field. Never render or persist that channel.
-                            if delta:
-                                acc += stream_filter.process_chunk(delta)
-                                box.markdown(acc + "▌")
-
-                        usage = getattr(chunk, "usage", None)
-                        if usage and getattr(usage, "total_tokens", None) is not None:
-                            st.session_state.last_token_count = int(usage.total_tokens)
-                            used_usage_from_backend = True
-
-                    if stream_filter.in_think_block and DEBUG_MODE:
-                        logging.debug("Unclosed think block detected at end of stream.")
-
-                    tail = stream_filter.finalize()
-                    if tail:
-                        acc += tail
-                    elif stream_filter.in_think_block and DEBUG_MODE:
-                        logging.debug(
-                            "Discarding trailing stream buffer because stream ended inside a think block."
-                        )
-
-                    acc = strip_think_blocks(acc)
-                    box.markdown(acc)
-
-                    # If backend didn't provide usage totals, keep hybrid behavior with a fast estimate.
-                    if not used_usage_from_backend:
-                        completion_est = _heuristic_token_estimate(acc)
-                        st.session_state.last_token_count = int(prompt_token_estimate + completion_est)
-
-                    st.session_state.messages.append(
-                        {
-                            "id": assistant_msg_id,
-                            "role": "assistant",
-                            "content": acc,
-                        }
-                    )
-                    st.rerun()
-
-                except Exception as e:
-                    msg = str(e)
-                    lower = msg.lower()
-
-                    if "context" in lower and ("length" in lower or "too long" in lower or "maximum" in lower):
-                        if st.session_state.messages:
-                            last_msg = st.session_state.messages[-1]
-                            if last_msg.get("role") == "user" and last_msg.get("id") == user_msg_id:
-                                st.session_state.messages.pop()
-                        st.error(
-                            "That message is too long for this AI model. "
-                            "I omitted that oversized request from conversation history to keep this session usable. "
-                            "Try removing a few attachments, shortening your message, or starting a new conversation."
-                        )
-                    elif "connection" in lower or "timed out" in lower or "timeout" in lower:
-                        st.error("I couldn't reach the AI service. Please try again in a moment.")
-                    else:
-                        st.error("Something went wrong while talking to the AI service. Please try again.")
-
-                    if DEBUG_MODE:
-                        with st.expander("Details for troubleshooting", expanded=False):
-                            st.code(msg)
+    @st.fragment(run_every=0.5 if busy else None)
+    def show_request():
+        current = gate.active
+        if current is None or current.owner is not payloads:
+            if busy and not gate.running:
+                st.rerun()
+            return
+        stage, partial, error, notice, done = current.snapshot()
+        if current.stopped() and not done and not current.owner.released:
+            st.warning("The request deadline has expired; waiting for the connection to close. "
+                       "No incomplete reply will enter conversation history.")
+        elif not done:
+            st.info(stage)
+        if not done and current.waiting_for_display:
+            pending_user = current.user_message or {}
+            for part in pending_user.get("content", []):
+                if isinstance(part, dict) and part.get("_attachment"):
+                    meta = part["_attachment"]
+                    st.text(f"{meta['name']} [{meta['id'][:8]}]: {meta['status']} — {meta['reason']}")
+            # Model dispatch follows this UI status update, without asking for approval.
+            current.displayed.set()
+        if partial:
+            with styled_chat_message("assistant", current.id + "-partial"):
+                st.caption("Incomplete reply — excluded from conversation history")
+                st.markdown(partial)
+        if error:
+            st.error(error)
+        if notice and DEBUG_MODE:
+            st.caption(notice)
+        if done and not busy and error and current.retryable:
+            st.caption("Retry sends the same user turn once. Backend work from an interrupted connection may still be finishing.")
+            if st.button("Retry response", key="retry_response"):
+                retry = current.user_message
+                thinking = current.thinking
+                start_work("", [], thinking, retry)
+        if done and busy:
+            st.rerun()
+    show_request()
 
 
 main()

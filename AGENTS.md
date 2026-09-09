@@ -124,7 +124,8 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
 ## Context and Output Policy
 - `PARAMETER num_ctx` in the alias Modelfile is the source of truth for actual Ollama
   model context.
-- `LLM_CONTEXT_TOKENS` is only EphemerAl's document-budgeting hint.
+- `LLM_CONTEXT_TOKENS` is the app's request-admission ceiling. Check it against fresh
+  alias `num_ctx` and `/api/ps` running context; family maximum metadata is not runtime capacity.
 - `OLLAMA_CONTEXT_LENGTH` is not the primary approach for this stack because Ollama may
   become a shared API backend.
 - `PARAMETER num_ctx 131072` and `LLM_CONTEXT_TOKENS=131072` must remain aligned.

@@ -1,4 +1,5 @@
 import logging
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -36,6 +37,7 @@ class _FakeCompletions:
                 SimpleNamespace(
                     choices=[
                         SimpleNamespace(
+                            finish_reason="stop",
                             delta=SimpleNamespace(
                                 content=(
                                     f"<think>{INLINE_THINK_SENTINEL}</think>{answer}"
@@ -69,7 +71,18 @@ def _install_synthetic_backend(monkeypatch, calls):
 
 def _submit(at, text):
     at.chat_input[0].set_value(text).run()
+    settle(at)
     assert not at.exception
+
+
+def settle(at):
+    """AppTest has no browser timer; drive the same fragment completion reruns."""
+    for _ in range(100):
+        if not at.session_state["_work_gate"].running:
+            return at.run()
+        time.sleep(0.02)
+        at.run()
+    raise AssertionError("Synthetic operation did not finish")
 
 
 def test_browserless_submissions_use_medium_then_one_shot_xhigh_then_medium(
