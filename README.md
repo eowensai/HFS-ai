@@ -1,157 +1,115 @@
-# EphemerAl (EphemerAI UI): A Simple Self-Hosted Chat Interface for Local AI with Ollama that Accepts Documents and Images
+# EphemerAI
 
-EphemerAl is a lightweight, open-source web interface (user-facing brand: **EphemerAI**) for interacting with local LLMs on your hardware via Ollama. I designed it for my day job to help keep our team's sensitive info off cloud services, and to provide a modern AI experience to staff without the per-user cost required to achieve equivalent capabilities online. The repository now targets Qwen3.6-35B-A3B through a stable local alias (`ephemeral-default`) that you create from `qwen3.6:35b-a3b`, and can still be retargeted to other models by changing one environment variable (`LLM_MODEL_NAME`).
+EphemerAI is a local document-and-image chat application running on a Windows 11
+workstation through WSL2 and Docker. Prompts and files are processed by local
+Ollama and Apache Tika services. This repository is the **EphemerAI source and
+installation guide for the system verified on September 8, 2026**.
 
-While it wasn't built for broad distribution, I'm sharing this generalized version in case it helps others looking for a local-only, account-free, multimodal LLM interface. . . whether to provide an operational tool, a staff learning environment, or bragging rights when friends visit on your home network.
+![EphemerAI homepage](Ephemeral%20Screenshot.jpg)
 
-[View the source code on GitHub](https://github.com/eowensai/EphemerAl)
+Start with the [System Deployment Guide](System%20Deployment%20Guide.md).
+The [current-system record](docs/CURRENT_SYSTEM.md) distinguishes deployed facts
+from host-specific setup choices and remaining limitations.
 
-![A screenshot of EphemerAl, a self-hosted AI assistant for local document Q&A and image analysis using Ollama](Ephemeral%20Screenshot.jpg)
+## What is included
 
----
+- The deployed Streamlit UI, responsive layout, document/image handling, readable
+  assistant formatting, copy controls, and fictional regression tests.
+- The fixed shared Qwen model definition and exact accepted model manifest.
+- Docker Compose, the signed Tika maintenance build, core-dump policy source,
+  bounded RAM/tmpfs, and zero Linux container swap configuration.
+- Windows logon/WSL forwarding scripts and detailed fresh-host installation,
+  app-update and verification instructions.
 
-## Core Features
+HFS Knowledge and its V3 prototype are separate applications. Their source,
+documents, databases, jobs, answers and credentials are **not included**. They may
+share the same Ollama/Tika services; see [shared-service operations](docs/OPERATIONS.md).
+The word `hfs` in the model alias is part of the required shared model identity,
+not a dependency on the HFS Knowledge application.
 
-- **Local AI chat:** Real-time chat against a local Ollama model.
-- **Document ingestion:** Upload PDFs, Office docs, text files, and more (via Apache Tika).
-- **Upload guardrail:** Each uploaded file is capped at 50 MB to prevent accidental oversized uploads.
-- **Image + text chat:** If your selected model supports vision, image uploads are included in the request automatically.
-- **Streaming responses:** Assistant output streams token-by-token.
-- **Ephemeral by default:** Conversation state is in-memory for the session; no app-level database.
-- **Token/context safeguards:** The app estimates prompt size and drops overflowing attachments before request failure where possible.
+## Current stack
 
-## Default Model and Retargeting
+| Component | Accepted baseline |
+|---|---|
+| Application | Python 3.11, Streamlit 1.56.0, Pillow 12.3.0 |
+| Model server | Ollama 0.32.15 |
+| Model | Qwen3.8-27B, Unsloth UD-Q6_K_M |
+| Required alias | `hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072` |
+| Context / output ceiling | 131,072 / 32,768 tokens |
+| GPU profile | 66 layers, Q8 KV, Flash Attention, batch 128, embedded MTP 2 |
+| Parallelism | One loaded model and one parallel inference slot |
+| Parser | Local verified Tika 3.3.2 full image, including OCR/native helpers |
+| Linux memory caps | App 2 GiB; Tika 6 GiB; Ollama 18 GiB; zero container swap |
 
-### Default target
+The validated host has two RTX 5060 Ti 16 GiB GPUs and approximately 30 GiB
+available to WSL. Plan for **32 GiB total NVIDIA VRAM and at least 30 GiB WSL RAM**
+for this fixed profile; the actual workstation has 64 GiB host RAM. These are
+measured pilot requirements, not a guarantee for unlimited concurrent uploads.
+EphemerAI verifies the accepted manifest digest and Q6/vision capabilities and
+fails closed if they differ. It does not silently select another model.
 
-- **Model:** Qwen3.6-35B-A3B
-- **Ollama backing tag:** `qwen3.6:35b-a3b`
-- **App model name:** `ephemeral-default`
+Ordinary requests explicitly use medium reasoning. **Thinking Mode** selects
+`xhigh` for one submission and resets off; native callers use `think: "max"` for
+that one request. Reasoning deltas and embedded thought blocks are filtered from
+visible answers. The output ceiling is 32,768 tokens in either mode.
 
-Using a stable local alias is intentional: it lets you pin runtime defaults (like context and generation parameters) in one place while the app consistently calls `ephemeral-default`.
+## Privacy and access
 
-### Runtime assumptions in this repo
+EphemerAI has no chat database and does not intentionally save chat/document
+content. New Chat clears its conversation-owned messages, upload buffers and
+caches without clearing another user's session. Parsing no longer retains a
+second parsed-text cache. A supported Streamlit session-resource hook releases
+app-owned payloads on detected WebSocket disconnection; reconnect TTL is zero.
 
-- **128K target context:** set through alias Modelfile `num_ctx 131072`.
-- **q8 KV cache target:** configured via Ollama environment variable in the deployment path.
-- **Non-thinking by default:** requests use `reasoning_effort="none"`.
-- **No default EphemerAl output cap:** the app does not set `max_tokens` unless you explicitly configure `LLM_MAX_TOKENS`.
-- **Document budgeting reserve:** `LLM_OUTPUT_RESERVE_TOKENS` keeps response headroom while loading documents into context; it is not an output cap.
-- **OpenAI SDK client controls:** defaults are `LLM_REQUEST_TIMEOUT_S=1800` and `LLM_MAX_RETRIES=0` for local long-running inference without hidden retries.
+All three services handling EphemerAI data enforce zero Linux container swap,
+bounded temporary filesystems, and process core-dump controls. Clean browser
+closure triggered cleanup in about 0.06 seconds in a fictional test; silent
+network loss normally takes up to about 60 seconds plus scheduling to detect.
+In-flight requests, framework buffers, native/GPU memory, browser storage,
+clipboard, exports and Windows paging/crash dumps have additional lifetimes.
+There is **no forensic-erasure guarantee**, and these controls do not erase old
+swap, dumps or disk contents. [Privacy details](deployment/privacy/README.md).
 
-### Retarget to a different model
+CORS and XSRF protections are **enabled**. The UI has no login or TLS layer.
+The current installation relies on upstream network equipment to control access
+to the UI; that policy is not created by this repository. Docker publishes only
+8501. Ollama 11434 and Tika 9998 remain internal. Browser-origin checks do not
+replace network access control. Do not expose this deployment to the public
+internet without a separately designed authentication/TLS boundary.
 
-Set `LLM_MODEL_NAME` to any available Ollama model tag or local alias:
+## Install or update
 
-- Docker Compose: edit `docker-compose.yml`
-- Native/service deployment: set environment variable for the app service
+- **Fresh workstation:** follow the [complete setup guide](System%20Deployment%20Guide.md).
+- **Downloads during setup:** pull Ollama, build Tika from the signed Apache jar,
+  and download `unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M` from Hugging Face. Model weights
+  and container images are not part of the repository or source ZIP.
+- **Update an existing shared installation:** finish active requests, then rebuild
+  only EphemerAI with `docker compose up -d --build --no-deps --force-recreate ephemeral-app`.
+  Do not restart shared backends or recreate the alias as an app-update test.
+- **Verify a deployment:** run `python3 scripts/verify_runtime.py`, then check the
+  GPU/model state and one fictional upload as described in the setup guide.
+- **Stop only EphemerAI:** `docker compose stop ephemeral-app`. A WSL shutdown stops
+  HFS and other prototypes too and belongs to a coordinated maintenance window.
 
-The app performs model capability/context detection at runtime via Ollama (`/api/show`) so behavior remains adaptive across models.
+## Development
 
-## Privacy Notes
+Use Python 3.11+ and an isolated environment. Production dependencies stay in
+`requirements.txt`; pytest, Ruff and Playwright are development-only.
 
-EphemerAl is designed to minimize data retention:
-
-- **No database:** Conversations live in the Streamlit server process memory (`st.session_state`) for your browser session and are not persisted to disk by this app.
-- **Session-scoped caching:** Document parsing results are cached per-session for performance, but cleared when you start a new conversation or close your browser.
-- **Container isolation:** Tika and the Streamlit app use tmpfs for `/tmp`, so temporary files stay in RAM.
-- **Optional log suppression:** For hardened deployments, container logging can be disabled entirely (see docker-compose.yml comments).
-
-Note that browser caching behavior depends on your browser settings and cache-control headers. For maximum privacy on shared machines, use private/incognito browsing or clear browser data after use.
-
-If you enable a shared Ollama API backend, requests made directly to Ollama bypass the EphemerAl UI/session layer; privacy and logging behavior for those requests depends on the external client and Ollama deployment settings, not EphemerAl session behavior.
-
-## Network Security Note
-
-EphemerAl is designed for trusted local networks (home, office LAN) and does not implement authentication or transport encryption. The Streamlit container disables CORS and XSRF protection to allow straightforward LAN access. Do not expose this application to the public internet without adding a reverse proxy with authentication and TLS.
-
-## Technical Stack
-
-- Python 3.11 + Streamlit 1.56.0
-- Ollama API (OpenAI-compatible endpoint for chat)
-- Apache Tika server
-- Docker Compose (for the included deployment path)
-- Pinned Ollama container image in compose: `ollama/ollama:0.32.5`
-- Pinned Apache Tika container image in compose: `apache/tika:3.3.0.0-full`
-
-## Hardware Planning (honest baseline)
-
-Qwen3.6-35B-A3B is a large model and should be planned like one.
-
-- **Target baseline:** 32 GB total VRAM for this deployment (including multi-GPU setups such as 2x 16 GB cards).
-- **Operator validation required:** verify actual context realization and GPU residency with `ollama ps` after deployment.
-- **CPU-only fallback:** technically possible in some setups but usually too slow for interactive use.
-
-If this model is too heavy for your machine, retarget `LLM_MODEL_NAME` to a smaller local model.
-
-## System Requirements
-
-To run this interface effectively, the following specifications are recommended.
-
-- **Operating System:** Windows 11 Pro or Enterprise, fully updated. WSL will be installed as part of setup (if not already present).
-- **Graphics Processing Unit:** One or more discrete NVIDIA GPU(s), preferably from the 30-series or later. Plan for 32 GB total VRAM for Qwen3.6-35B-A3B (including multi-GPU combinations such as 2x 16 GB).
-- **Nvidia Driver:** The most recent WHQL-certified NVIDIA GPU driver. Optional components may be omitted.
-- **Additional Note:** If available, connect display to integrated graphics to allocate more VRAM to the NVIDIA GPU(s).
-
-## Deployment
-
-Use the step-by-step guide:
-
-- [System Deployment Guide](System%20Deployment%20Guide.md)
-
-### Migration note for pre-Qwen installs
-
-If your current stack still points at any older model tag, recreate or update your local `ephemeral-default` alias to point to `qwen3.6:35b-a3b` using the deployment guide, then confirm `docker-compose.yml` uses `LLM_MODEL_NAME=ephemeral-default`.
-
-## Shared Ollama API Backend (optional)
-
-- Raw Ollama remains internal by default in this stack.
-- Ollama cloud features are disabled by default (`OLLAMA_NO_CLOUD=1`) to keep this deployment local-only/privacy-aligned.
-- If you intentionally want shared API access, use the `docker-compose.api.yml` override to expose port `11434`.
-- External OpenAI-compatible clients should use:
-  - `model: "ephemeral-default"`
-  - `reasoning_effort: "none"`
-  - `temperature: 0.7`
-  - `top_p: 0.8`
-  - `presence_penalty: 1.5`
-- Important: raw Ollama exposure in this stack does not add app-level authentication by itself.
-
-## Accessing EphemerAl
-
-- Local: `http://localhost:8501`
-- Network: `http://<host-ip>:8501`
-
-## UI Validation Checklist (Streamlit 1.56)
-
-After deployment (or after UI updates), run this quick manual checklist in a browser:
-
-1. Open the app and confirm the empty welcome screen renders before any chat messages.
-2. Send a text-only prompt and confirm normal response streaming.
-3. Upload a supported document (for example, PDF or DOCX) and confirm document chat still works.
-4. Upload an image and confirm behavior is model-aware:
-   - If the selected model supports vision, the image is accepted and included.
-   - If the selected model does not support vision, the UI shows a clear warning and continues text chat.
-5. Click **New chat** and confirm prior messages/attachments are cleared from the current session.
-6. After at least one exchanged message, click **Copy conversation** and confirm clipboard copy works.
-7. Temporarily stop Ollama or Tika and confirm the app UI still renders with backend-unavailable guidance.
-8. Narrow the browser window (or test on mobile) and confirm basic sidebar/chat usability.
-
-## Stopping the Application
-
-Execute the following in an Administrator PowerShell window:
-
-```
-wsl --shutdown
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -q
+pytest -q
+python -m py_compile ephemeral_app.py ephemeral/*.py scripts/verify_runtime.py
+ruff check .
 ```
 
-To restart, either run `wsl` or reboot the system if you have the startup script installed.
+For browser tests, install the Playwright Chromium runtime in the development
+environment, then run `python scripts/ui_smoke.py`. Never test with real HFS data
+or restart shared services merely to test this UI. See [validation](docs/VALIDATION.md)
+for accepted checks and known lint debt.
 
-## Support
-
-This project is provided as a resource for the community as-is. I hope it solves a problem or provides value outside my environment.
-
-If you run into issues, consider submitting error details, including screenshots and system files, to an AI assistant for guidance. This isn't meant to be snark, it's amazing how well the big reasoning models can troubleshoot.
-
-**License:**
-
-MIT - (At least the parts of this stack that are mine to license)
+The application code is MIT-licensed; model weights and bundled upstream software
+retain their own licenses. See [LICENSE.md](LICENSE.md).

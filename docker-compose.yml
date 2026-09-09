@@ -6,29 +6,43 @@
 #   • tika-server   — parses over 100 document types
 #   • ephemeral-app — Streamlit front-end website
 #
-# CUSTOMIZE comments below flag the lines that most people tweak:
-#   • LLM model name tag (for example qwen3.6:35b-a3b or ephemeral-default)
-#   • Service / container names if you prefer different labels
+# The Qwen3.8 alias and inference profile are fixed for this stack.
+# CUSTOMIZE only service / container names when different labels are required.
 ###############################################################################
+
+# Keep existing volume/network identities independent of the checkout folder.
+name: ephemeral-llm
 
 services:
   # --------------------------------------------------------------------------
   # Large-language-model back-end (Ollama)
   # --------------------------------------------------------------------------
   ollama:
-    # Pinned for compatibility with Qwen3.6-35B-A3B / ephemeral-default. Last validated: July 2026.
+    # Pinned for the shared Unsloth Qwen3.8-27B alias. Last validated: August 2026.
     # Check https://github.com/ollama/ollama/releases before upgrading.
     # NOTE: ollama/ollama#14716 (vision+thinking) is fixed; workaround retained as defense-in-depth.
-    image: ollama/ollama:0.32.5
+    image: ollama/ollama:0.32.15
     container_name: ollama
+    # Equal memory and memory+swap limits prohibit Linux container swapping.
+    mem_limit: 18g
+    memswap_limit: 18g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
     restart: unless-stopped
     networks: [llm-net]
 
     # Model weights live here; bind to a fast disk if possible
     volumes:
       - ollama-models:/root/.ollama
+      - ./deployment/privacy/libephemerai_nodump.so:/opt/ephemerai/libephemerai_nodump.so:ro
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g,mode=1777
+      - /var/tmp:rw,nosuid,nodev,size=256m,mode=1777
 
     environment:
+      - LD_PRELOAD=/opt/ephemerai/libephemerai_nodump.so
       # NVIDIA_VISIBLE_DEVICES=all lets the container see every GPU the host has.
       - NVIDIA_VISIBLE_DEVICES=all
       - OLLAMA_HOST=0.0.0.0:11434
@@ -65,19 +79,33 @@ services:
   # Apache Tika — document parsing
   # --------------------------------------------------------------------------
   tika-server:
-    image: apache/tika:3.3.0.0-full
+    # Locally built and digest-pinned. Fresh installs set TIKA_IMAGE in .env;
+    # the fallback preserves the current host. See deployment/tika/README.md.
+    image: ${TIKA_IMAGE:-shared-tika:3.3.2-20260907@sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c}
+    pull_policy: never
     container_name: tika-server
+    # Equal memory and memory+swap limits prohibit Linux container swapping.
+    mem_limit: 6g
+    memswap_limit: 6g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
     restart: unless-stopped
     networks: [llm-net]
     environment:
-      - JAVA_TOOL_OPTIONS=-Xmx2g -Xms512m
-    # Intentionally internal-only on llm-net for privacy; temporarily switch to
-    # ports: ["9998:9998"] for local host debugging with curl if needed.
+      - LD_PRELOAD=/opt/ephemerai/libephemerai_nodump.so
+      - JAVA_TOOL_OPTIONS=-Xmx2g -Xms512m -XX:-CreateCoredumpOnCrash -XX:-HeapDumpOnOutOfMemoryError -XX:ErrorFile=/tmp/hs_err_pid%p.log
+    # Internal-only on llm-net. Probe the private IP; never publish this port.
     expose: ["9998"]
 
     # Keep /tmp in RAM so uploaded docs never touch disk inside the container
     tmpfs:
-      - /tmp
+      - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
+      - /var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
+
+    volumes:
+      - ./deployment/privacy/libephemerai_nodump.so:/opt/ephemerai/libephemerai_nodump.so:ro
 
     # Disable Docker logs for this container (privacy)
     logging:
@@ -87,27 +115,38 @@ services:
   # Streamlit front-end (EphemerAl)
   # --------------------------------------------------------------------------
   ephemeral-app:
+    image: ephemeral-llm-ephemeral-app:latest
     build: .                              # uses local Dockerfile
     container_name: ephemeral-app
+    # Equal memory and memory+swap limits prohibit Linux container swapping.
+    mem_limit: 2g
+    memswap_limit: 2g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
     restart: unless-stopped
     networks: [llm-net]
 
     ports: ["0.0.0.0:8501:8501"]
 
     environment:
+      - LD_PRELOAD=/opt/ephemerai/libephemerai_nodump.so
       - LLM_BASE_URL=http://ollama:11434/v1
-      - LLM_MODEL_NAME=ephemeral-default   # Default alias for Qwen3.6-35B-A3B in this stack.
-      - LLM_CONTEXT_TOKENS=131072          # App-side budgeting hint for document/context packing.
-      # Actual Ollama context window is set by PARAMETER num_ctx in the ephemeral-default Modelfile.
-      - LLM_OUTPUT_RESERVE_TOKENS=${LLM_OUTPUT_RESERVE_TOKENS:-32768}
-      - LLM_REQUEST_TIMEOUT_S=${LLM_REQUEST_TIMEOUT_S:-1800}
-      - LLM_MAX_RETRIES=${LLM_MAX_RETRIES:-0}
-      - LLM_REASONING_EFFORT=none
+      - LLM_MODEL_NAME=hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072
+      - LLM_CONTEXT_TOKENS=131072          # App-side budgeting hint; matches the forced-full-offload Q6 alias.
+      - LLM_OUTPUT_RESERVE_TOKENS=32768
+      - LLM_REQUEST_TIMEOUT_S=1800
+      - LLM_MAX_RETRIES=0
+      - LLM_REASONING_EFFORT=medium
+      # OpenAI-compatible Qwen request setting. Native Ollama uses think=max;
+      # this client sends reasoning_effort=xhigh.
+      - LLM_THINKING_EFFORT=xhigh
       - LLM_SHOW_REASONING=false
-      - LLM_TEMPERATURE=0.7
-      - LLM_TOP_P=0.8
-      - LLM_PRESENCE_PENALTY=1.5
-      - LLM_MAX_TOKENS=                    # Blank means EphemerAl does not impose an output cap.
+      - LLM_TEMPERATURE=1.0
+      - LLM_TOP_P=0.95
+      - LLM_PRESENCE_PENALTY=0.0
+      - LLM_MAX_TOKENS=32768
       - TIKA_URL=http://tika-server:9998
       - TIKA_CLIENT_ONLY=true
       - STREAMLIT_SERVER_HEADLESS=true
@@ -119,10 +158,12 @@ services:
     # Static assets (logo, CSS) mounted read-only
     volumes:
       - ./static:/app/static:ro
+      - ./deployment/privacy/libephemerai_nodump.so:/opt/ephemerai/libephemerai_nodump.so:ro
 
     # Keep /tmp in RAM for any temporary upload buffers
     tmpfs:
-      - /tmp
+      - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
+      - /var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
 
     # Rotated logs for debugging.
     # For a final kiosk box, you can change driver: "local" → "none".

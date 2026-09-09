@@ -153,17 +153,23 @@ def _capture_ui_screenshots() -> None:
 
 
 def main() -> int:
-    global STREAMLIT_PROCESS
-    proc = _start_streamlit()
+    global STREAMLIT_PROCESS, BASE_URL
+    # Test a deployed or isolated preview server without starting on its port.
+    existing_url = os.getenv("EPHEMERAL_UI_URL")
+    if existing_url:
+        BASE_URL = existing_url.rstrip("/")
+    proc = None if existing_url else _start_streamlit()
     STREAMLIT_PROCESS = proc
 
     try:
-        _wait_for_http_ready(BASE_URL, STARTUP_TIMEOUT_SECONDS)
+        if proc is not None:
+            _wait_for_http_ready(BASE_URL, STARTUP_TIMEOUT_SECONDS)
         _capture_ui_screenshots()
     except SmokeTestError as exc:
-        _terminate_process(proc)
+        if proc is not None:
+            _terminate_process(proc)
         output = ""
-        if proc.stdout:
+        if proc is not None and proc.stdout:
             try:
                 output = proc.stdout.read()
             except Exception:
@@ -174,7 +180,8 @@ def main() -> int:
         print(message, file=sys.stderr)
         return 1
     finally:
-        _terminate_process(proc)
+        if proc is not None:
+            _terminate_process(proc)
 
     print("UI smoke test passed.")
     print(f"Desktop screenshot: {DESKTOP_SCREENSHOT}")

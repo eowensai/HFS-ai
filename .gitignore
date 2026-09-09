@@ -48,3 +48,12 @@ Thumbs.db
 
 # Generated test artifacts
 artifacts/
+
+# Host-built service core-dump policy (source in deployment/privacy).
+deployment/privacy/*.so
+
+# Large recovery assets stay outside Git.
+downloads/
+*.tar
+*.tar.gz
+*.zip

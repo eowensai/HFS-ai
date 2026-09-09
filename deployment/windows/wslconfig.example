@@ -1,0 +1,6 @@
+# Merge with %UserProfile%\.wslconfig; preserve existing settings.
+[wsl2]
+localhostForwarding=true
+# Validated host used default WSL NAT, exposing about 30 GiB RAM from 64 GiB host RAM.
+# On a differently sized host, ensure WSL has enough RAM for the 26 GiB container
+# ceilings plus HFS/host headroom. Do not disable Windows paging or Linux host swap.

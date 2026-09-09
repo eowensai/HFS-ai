@@ -58,3 +58,12 @@ requirements-dev.txt
 
 # Generated test artifacts
 artifacts/
+
+# Deployment documentation and local large downloads are not runtime payloads.
+docs/
+downloads/
+*.tar
+*.tar.gz
+*.zip
+
+deployment/tika/

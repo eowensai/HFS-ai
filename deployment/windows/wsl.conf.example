@@ -1,0 +1,3 @@
+# Merge with existing /etc/wsl.conf on a fresh host; do not replace unrelated settings.
+[boot]
+systemd=true
