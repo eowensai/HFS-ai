@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ephemeral import config as cfg
 
 STATE = {'mode': 'success', 'calls': 0, 'last': None, 'reads': 0}
+UI_PARSE_RELEASE = threading.Event()
 DETAILS = {'family': cfg.PINNED_LLM_MODEL_FAMILY,
            'parameter_size': cfg.PINNED_LLM_MODEL_PARAMETER_SIZE,
            'quantization_level': cfg.PINNED_LLM_MODEL_QUANTIZATION}
@@ -55,8 +56,10 @@ class Boundary(BaseHTTPRequestHandler):
     def do_PUT(self):
         data = self.rfile.read(int(self.headers['Content-Length']))
         STATE['reads'] += 1
+        if STATE['mode'] == 'ui_pending':
+            UI_PARSE_RELEASE.wait(2)
         if STATE['mode'] == 'slow_parser':
-            time.sleep(2)
+            time.sleep(4)
         if data == b'bad':
             self.send(200, {'X-TIKA:content': ''})
         elif STATE['mode'] == 'failed_parser':
@@ -73,6 +76,8 @@ class Boundary(BaseHTTPRequestHandler):
         STATE['calls'] += 1
         STATE['last'] = body
         mode = STATE['mode']
+        if mode == 'ui_pending':
+            time.sleep(2)
         if mode == 'busy':
             self.send(503, {'error': {'message': 'synthetic busy', 'type': 'server_error'}})
             return
@@ -114,7 +119,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     endpoint = f'http://127.0.0.1:{server.server_port}'
     env = dict(os.environ, LLM_BASE_URL=endpoint + '/v1', TIKA_URL=endpoint,
-               LLM_SUPPORTS_VISION='false', TIKA_TIMEOUT_S='1', LLM_REQUEST_TIMEOUT_S='3',
+               LLM_SUPPORTS_VISION='false', TIKA_TIMEOUT_S='3', LLM_REQUEST_TIMEOUT_S='3',
                MAX_UPLOAD_COUNT='2', MAX_UPLOAD_TOTAL_BYTES='30', MAX_EXTRACTED_BYTES='12')
     proc = subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', 'ephemeral_app.py',
                              '--server.port=18502', '--server.address=127.0.0.1'],
@@ -132,6 +137,23 @@ def main():
             browser = p.chromium.launch(headless=True)
             context = browser.new_context()
             a = context.new_page(); a.goto('http://127.0.0.1:18502')
+            STATE['mode'] = 'ui_pending'
+            submit(a, 'Keep this synthetic prompt visible', [fixture('preview.txt')])
+            expect(a.get_by_text('Reading a file…', exact=True)).to_be_visible(timeout=10_000)
+            user_text = a.locator('[class*="st-key-user-"] [data-testid="stMarkdownContainer"]').filter(
+                has_text='Keep this synthetic prompt visible')
+            expect(user_text).to_have_count(1, timeout=500)
+            UI_PARSE_RELEASE.set()
+            expect(a.get_by_text('Waiting for model response…', exact=True)).to_be_visible(timeout=10_000)
+            expect(user_text).to_have_count(1, timeout=500)
+            expect(a.locator('.attachment-meta')).to_contain_text('partial')
+            assert a.get_by_test_id('stAlert').filter(has_text='Waiting for model response').count() == 0
+            assert a.get_by_test_id('stChatInputTextArea').get_attribute('maxlength') is None
+            expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
+            wait_idle(a)
+            expect(user_text).to_have_count(1)
+            reset(a)
+            print('PASS browser submitted prompt stays visible, quiet status, no composer counter', flush=True)
             for mode in ['busy', 'interrupted', 'timeout']:
                 STATE['mode'] = mode
                 before = STATE['calls']
@@ -188,7 +210,7 @@ def main():
                 print(f'PASS browser {mode} prevents inference', flush=True)
             STATE['mode'] = 'pending'
             submit(a)
-            expect(a.get_by_test_id('stAlert').filter(has_text='Waiting for model response')).to_be_visible(timeout=10_000)
+            expect(a.get_by_text('Waiting for model response…', exact=True)).to_be_visible(timeout=10_000)
             a.get_by_role('button', name='New Chat', exact=True).click()
             expect(a.locator('section.welcome-shell')).to_be_visible(timeout=10_000)
             wait_idle(a)

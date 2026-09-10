@@ -169,3 +169,32 @@ Protocol references inspected for this implementation:
 [Ollama 0.32.15 routes](https://github.com/ollama/ollama/blob/v0.32.15/server/routes.go),
 [Tika 3.3.2 resource and write-limit behavior](https://github.com/apache/tika/blob/3.3.2/tika-server/tika-server-core/src/main/java/org/apache/tika/server/core/resource/TikaResource.java),
 [Tika partial/error metadata](https://github.com/apache/tika/blob/3.3.2/tika-core/src/main/java/org/apache/tika/metadata/TikaCoreProperties.java).
+
+## Follow-up: quieter request UI (2026-09-09)
+
+After PR #3 was merged and installed, user feedback requested removal of the
+composer counter and prominent waiting bar, and continuous visibility of the
+submitted prompt. Base: merged main `75c473cb1dacc25efcaa3981ec98cbbd690b62a5`.
+
+Removed the composer `max_chars` option; the existing server-side UTF-8 text limit
+and complete-request budget remain unchanged. Normal request stages now use a
+small caption. The polling fragment renders newly accepted messages and a preview
+of the submitted text during parsing; the preview does not enter model history.
+Attachment badges still appear before dispatch. Errors, incomplete-response
+handling, explicit retry, New Chat isolation and all original limits are retained.
+
+The expanded `python scripts/reliability_failures.py` first reproduced the missing
+prompt during controlled parsing, then passed all **11 browser groups** after the
+fix. It checks prompt visibility during reading and model waiting, no duplicate
+prompt after completion, no counter, and no alert-style waiting bar. Both pytest
+commands passed **135 tests**; compilation and `pip check` passed. Native-filesystem
+Ruff still reports the same **54 existing findings**, with no new file/code findings.
+`git diff --check` passed. The installed app passed all **7 real-backend browser
+groups** and `python scripts/ui_smoke.py` (empty desktop/mobile screenshots).
+
+Runtime source commit `f3531450b15d66a30c391e485fd9e09a3fff2cb1` was installed as an
+app-only update using the previous runtime image. Installed source hashes match
+the commit. Existing app settings and mounts were preserved; shared Ollama/Tika
+identities and start times are unchanged. Prior image/configuration references and
+rollback commands are retained in ignored local recovery notes. Earlier stress,
+fresh-install and physical-clipboard limitations still apply.
