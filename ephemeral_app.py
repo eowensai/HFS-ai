@@ -274,7 +274,6 @@ def main():
         accept_file="multiple",
         height=68,
         max_upload_size=min(50, max(1, cfg.MAX_UPLOAD_BYTES // (1024 * 1024))),
-        max_chars=cfg.MAX_PROMPT_BYTES,
         disabled=busy,
         key="main_chat",
         on_submit=_capture_turn_options,
@@ -414,14 +413,21 @@ def main():
             st.markdown(content or "")
 
 
-    # ── Render chat history ───────────────────────────────────────────
-    for m in st.session_state.messages:
+    def render_message(m):
         with styled_chat_message(m["role"], m.get("id")):
             render_content(m["content"])
             turn_copy_md = build_message_markdown(m)
             turn_copy_html = build_message_html(m)
             turn_copy_id = m.get("id") or str(uuid.uuid4())
             render_turn_copy_button(turn_copy_md, turn_copy_html, turn_copy_id)
+
+    # Keep existing history outside the polling fragment. Newly accepted messages
+    # are rendered inside it until the next full rerun incorporates them here.
+    with payloads._lock:
+        history = list(st.session_state.messages)
+    rendered_ids = {m.get("id") for m in history}
+    for m in history:
+        render_message(m)
 
 
     # ── Mobile convenience button ─────────────────────────────────────
@@ -467,7 +473,7 @@ def main():
             start_work(user_text, files, turn_thinking_mode)
 
     if busy and work is None:
-        st.info("The previous request is still closing locally. New Chat cleared its conversation. "
+        st.caption("The previous request is still closing locally. New Chat cleared its conversation. "
                 "Stopping this UI does not confirm that backend work has stopped.")
 
     @st.fragment(run_every=0.5 if busy else None)
@@ -478,18 +484,27 @@ def main():
                 st.rerun()
             return
         stage, partial, error, notice, done = current.snapshot()
+        with payloads._lock:
+            latest = list(st.session_state.messages)
+        for message in latest:
+            if message.get("id") not in rendered_ids:
+                render_message(message)
+        # Show the submitted text even while attachments are still being read.
+        # This preview does not add unvalidated content to model history.
+        pending = current.user_message or {
+            "id": current.id, "role": "user", "content": current.text,
+        }
+        if (not done and pending.get("content")
+                and not any(m.get("id") == pending["id"] for m in latest)):
+            with styled_chat_message("user", pending["id"]):
+                render_content(pending["content"])
         if current.stopped() and not done and not current.owner.released:
             st.warning("The request deadline has expired; waiting for the connection to close. "
                        "No incomplete reply will enter conversation history.")
         elif not done:
-            st.info(stage)
+            st.caption(stage)
         if not done and current.waiting_for_display:
-            pending_user = current.user_message or {}
-            for part in pending_user.get("content", []):
-                if isinstance(part, dict) and part.get("_attachment"):
-                    meta = part["_attachment"]
-                    st.text(f"{meta['name']} [{meta['id'][:8]}]: {meta['status']} — {meta['reason']}")
-            # Model dispatch follows this UI status update, without asking for approval.
+            # The user turn and its attachment badges above precede model dispatch.
             current.displayed.set()
         if partial:
             with styled_chat_message("assistant", current.id + "-partial"):
