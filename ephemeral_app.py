@@ -51,6 +51,7 @@ from ephemeral.session_lifecycle import (
     reset_conversation,
 )
 from ephemeral.tika_client import parse_with_tika, tika_alive
+from ephemeral.token_budget import BUDGET_HELP, budget_caption, budget_percent
 from ephemeral.turn_options import (
     THINKING_MODE_KEY,
     capture_thinking_mode_for_submission,
@@ -299,6 +300,7 @@ def main():
                 key=THINKING_MODE_KEY,
                 disabled=busy,
             )
+            budget_slot = st.empty()
 
     # Hide the welcome shell in the same run as the first submitted prompt so
     # initial-turn layout and composer spacing remain stable.
@@ -447,9 +449,7 @@ def main():
             for upload in files:
                 upload.close()
             return
-        if gate.active:
-            payloads.disown(gate.active)
-            gate.active.clear()
+        previous = gate.active
         current = TurnWork(payloads, st.session_state.messages, text, files, thinking,
                            SYSTEM_TMPL.safe_substitute(current_time_local=timestamp_local()),
                            DEFAULT_UPLOAD_PROMPT)
@@ -462,6 +462,9 @@ def main():
             payloads.disown(current)
             st.error("The app is busy with its bounded number of active requests. Try submitting again shortly.")
             return
+        if previous:
+            previous.owner.disown(previous)
+            previous.clear()
         st.rerun()
 
     if prompt_in is not None:
@@ -479,45 +482,68 @@ def main():
     @st.fragment(run_every=0.5 if busy else None)
     def show_request():
         current = gate.active
+        snapshot = current.snapshot() if current and current.owner is payloads else None
+        with payloads._lock:
+            revision = snapshot.revision if snapshot else st.session_state.messages.revision
+            measurement = snapshot.budget if snapshot else payloads.budget_snapshot
+            show_budget = bool(snapshot and not snapshot.done) or bool(st.session_state.messages)
+        # The external empty slot is replaced, not appended, on every fragment run.
+        with budget_slot.container():
+            if show_budget:
+                with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+                    st.caption(budget_caption(measurement, payloads.id, revision,
+                                              submitted=bool(snapshot and not snapshot.done)), width="content")
+                    with st.popover("Budget help", type="tertiary", width="content"):
+                        st.write(BUDGET_HELP)
+                percent = budget_percent(measurement, payloads.id, revision)
+                if percent is not None and percent >= 95:
+                    st.caption("Copy anything you need before starting a new chat.")
         if current is None or current.owner is not payloads:
             if busy and not gate.running:
                 st.rerun()
             return
-        stage, partial, error, notice, done = current.snapshot()
-        with payloads._lock:
-            latest = list(st.session_state.messages)
+        stage, partial, error, notice, done = (
+            snapshot.stage, snapshot.partial, snapshot.error, snapshot.notice, snapshot.done)
+        latest = snapshot.messages
         for message in latest:
             if message.get("id") not in rendered_ids:
                 render_message(message)
         # Show the submitted text even while attachments are still being read.
         # This preview does not add unvalidated content to model history.
-        pending = current.user_message or {
-            "id": current.id, "role": "user", "content": current.text,
-        }
-        if (not done and pending.get("content")
+        pending = snapshot.pending
+        if (not done and pending and pending.get("content")
                 and not any(m.get("id") == pending["id"] for m in latest)):
             with styled_chat_message("user", pending["id"]):
                 render_content(pending["content"])
-        if current.stopped() and not done and not current.owner.released:
+        if snapshot.expired and not done:
             st.warning("The request deadline has expired; waiting for the connection to close. "
                        "No incomplete reply will enter conversation history.")
-        elif not done:
-            st.caption(stage)
-        if not done and current.waiting_for_display:
+        elif not done and stage and not partial.strip():
+            # Only the stage is a polite live region. Timer ticks are visual,
+            # excluded from the accessibility tree, and never steal focus.
+            with st.container(horizontal=True, gap="small"):
+                st.caption(f'<span role="status" aria-live="polite" aria-atomic="true">{html_escape(stage)}</span>',
+                           unsafe_allow_html=True, width="content")
+                st.caption(f'<span aria-hidden="true"> · {snapshot.elapsed}s</span>',
+                           unsafe_allow_html=True, width="content")
+            if stage == "Waiting for the AI…":
+                st.caption("Large documents or other requests can add to the wait.")
+        if not done and snapshot.waiting_for_display:
             # The user turn and its attachment badges above precede model dispatch.
-            current.displayed.set()
-        if partial:
+            current.acknowledge_display()
+        if partial.strip():
             with styled_chat_message("assistant", current.id + "-partial"):
-                st.caption("Incomplete reply — excluded from conversation history")
+                if error:
+                    st.caption("Incomplete reply — excluded from conversation history")
                 st.markdown(partial)
         if error:
             st.error(error)
         if notice and DEBUG_MODE:
             st.caption(notice)
-        if done and not busy and error and current.retryable:
+        if done and not busy and error and snapshot.retryable:
             st.caption("Retry sends the same user turn once. Backend work from an interrupted connection may still be finishing.")
             if st.button("Retry response", key="retry_response"):
-                retry = current.user_message
+                retry = snapshot.pending
                 thinking = current.thinking
                 start_work("", [], thinking, retry)
         if done and busy:

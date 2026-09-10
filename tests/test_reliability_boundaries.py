@@ -154,7 +154,7 @@ def test_stream_event_limit_before_decoder(monkeypatch):
     monkeypatch.setattr(cfg, 'MAX_STREAM_EVENT_BYTES', 32)
     raw = ByteStream([b'data: ' + b'x' * 30])
     bounded = BoundedStream(raw, __import__('time').monotonic())
-    with pytest.raises(ValueError, match='event'):
+    with pytest.raises(ValueError, match='event|frame'):
         list(bounded)
     bounded.close()
     assert raw.closed

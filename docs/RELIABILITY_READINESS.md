@@ -1,4 +1,126 @@
-# Reliability candidate — September 9, 2026
+# CURRENT reliability review and minimal feedback candidate — September 9, 2026
+
+## Source, review and deployment state
+
+Starting main: `88a05d1a447186e1608fcfb1b01a9567b8c91f31`, freshly verified through
+GitHub's authenticated Git API. CLI Git had no login; fetched commit/tree hashes
+and all cached blob hashes were checked before the isolated checkout was created.
+Branch: `codex/reliability-review-feedback`. Historical review-only base:
+`06b0a167114a07bba0db2f26d93c28179d174d96`.
+
+**Tested and installed application source:**
+`e3093c23df510f79f545bb6a23cefdd3f46e1828`.
+The handoff documentation update changes no runtime source. This is a tested
+candidate installed locally, not a merged GitHub release or security certification.
+Publication uses the authenticated Git API; the remote tree and runtime source
+hashes are checked against the local candidate, independently of commit metadata.
+
+Two separate read-only reviewers were used. The first reviewed the cumulative
+historical-to-main implementation before edits. A fresh reviewer reviewed both
+historical-to-candidate and main-to-candidate at `119efbd7564bb8cb00defc12a014fce565373afc`,
+then verified corrections through the final source commit above. Source stayed
+immutable during each pass. Its final disposition was **no actionable findings**.
+Exact review commits, reproductions, fixes and limits are in
+[RELIABILITY_REVIEW.md](RELIABILITY_REVIEW.md).
+
+Discovery confirmed that the pre-task app ran the installed quiet UI source
+`f3531450b15d66a30c391e485fd9e09a3fff2cb1`; all 19 inspected runtime/source/config
+files matched freshly fetched main. Container-only differences were generated
+bytecode and the existing mounted no-dump library, not live-only application edits.
+The separate dirty live checkout and its older EphemerAl remote were preserved.
+Current app image/configuration, the pre-task image, service identities and the
+exact app-only rollback command are retained in ignored `.local/RECOVERY.md` and
+its adjacent records. Do not use the dirty checkout's full-stack Compose to manage
+this candidate. Shared Ollama/Tika IDs, image identities, start times and mounts
+were unchanged. No HFS Knowledge, model, network or authentication changes.
+
+## Resulting behavior
+
+Confirmed reliability fixes cover late preparation publication after owner release,
+last-slot retry, lost retries when process capacity is occupied, silent preparation
+timeouts, premature incomplete warnings, and logical-event/SDK-frame/compressed
+response bounds. The canonical serializer and conservative estimator, 32768 output
+allowance, server limits, pinned model/profile and attachment display acknowledgement
+remain intact. No production dependency changed.
+
+The existing worker and polling fragment provide a small stage caption with whole
+elapsed seconds. File ordinals refer to the submitted batch. Thinking requires
+observed nonempty dedicated reasoning; only presence reaches feedback state.
+Filtered visible answer text removes the caption and streams normally. A truly
+interrupted reply is marked incomplete and excluded from model history/export.
+Only actual stage text is a polite live region; timer ticks are excluded. No typing
+counter, max_chars, prominent waiting bar, queue estimate, reasoning text or new
+framework. Content-width native captions keep the timer beside its stage.
+
+An immutable numeric budget snapshot is cached by conversation identity and content
+revision. Active requests show their actual preflight estimate; at rest it describes
+retained content, with one answer reserve, excluding the unsent draft. Completion
+and rejection/failure recompute retained content; failed context verification stays
+unavailable. New Chat drops the snapshots. Percentages are floored, with informative
+80%/95% warnings and an explicit distinction between exactly full and over limit.
+No per-refresh counting/probes or new admission rules. Keyboard/touch help explains
+conservative estimation and that New Chat carries no conversation/files forward.
+
+## Actual final validation
+
+All content-bearing fixtures were fictional and in memory. Only empty-session
+screenshots and content-free results were retained. Tests use the existing isolated
+test image; Playwright is absent from the installed application image.
+
+| Check | Actual result |
+|---|---|
+| Starting main, both pytest entry points | 135 passed each |
+| Final `python -m pytest -q` | **262 passed** |
+| Final `pytest -q` | **262 passed** |
+| Python/app/module/browser-runner compilation | Passed |
+| Requirements install/satisfaction and `pip check` | Passed; production dependencies unchanged |
+| Native-filesystem `ruff check .` | **56 pre-existing findings, unchanged; no added findings. Full lint still exits nonzero.** |
+| `git diff --check`; README/deployment relative links | Passed |
+| App-only image build and Compose resolution | Passed, using the preserved production runtime; no framework/OS upgrade |
+| `scripts/reliability_failures.py` | **13 controlled Chromium groups passed**, including final caption spacing |
+| `scripts/reliability_browser.py` | **7 real-backend groups passed**, both isolated candidate and installed final app |
+| `scripts/ui_smoke.py` | Passed on installed app; empty desktop/mobile captures |
+| Independent final correction verification | 93 SDK framing cases passed at `36e3979`; final presentation diff reviewed at `e3093c2`, no actionable findings |
+| Installed source identity | All **15 Python file hashes** match the final reviewed runtime source |
+| `scripts/verify_runtime.py` after installation | Passed; shared service/model identity and app protections preserved; zero swap/OOM kills |
+
+Ruff was compared using actual Git file modes. The prior historical report's 54
+omitted two EXE001 findings on the tracked non-executable browser runners; current
+main and this candidate both have 56. This debt was reported, not skipped or
+removed through an unrelated cleanup.
+
+Real paths include TXT → Tika → model, scanned PDF OCR, supported image input,
+unreadable-upload follow-up, one-turn Thinking Mode, two separate browser sessions,
+and copy/export through the real browser button with an in-memory clipboard sink.
+Empty captures in the test image are `artifacts/ui-smoke/home-desktop.png` and
+`artifacts/ui-smoke/home-mobile.png`; handoff copies are separate output artifacts.
+
+Controlled paths cover same-name/partial/omitted attachments, aggregate limits,
+metadata mismatch/unavailability, busy/timeout/interrupted requests, retry at the
+last slot and after process-capacity rejection, release/publication races, hidden
+reasoning sentinels in UI/state/export/logging, pre-dispatch acknowledgement, stage
+timing without repeated live-region changes, healthy versus incomplete streaming,
+budget 80%/95%/exact/over-limit boundaries, stale/missing/invalid measurements,
+retained/request snapshot equality, rejection restoration and New Chat. Ninety
+short CR/LF separator/chunk-partition combinations and surplus-newline exact
+boundaries use the installed SDK as the framing oracle. Compressed-response tests
+exercise the actual HTTPX/OpenAI path; they are not normal-backend acceptance claims.
+
+## Remaining evidence limits
+
+The ordinary real model/Tika paths passed without exhausting resources. A full
+131072-token request, full 32768-token completion, extreme file/concurrency stress,
+physical model cold reload and fresh-host/Internet-base-image installation were
+not repeated. The estimator was not retuned; historical tiny calibration is not
+proof for every input. OS clipboard and actual screen-reader speech were not
+verified; browser clipboard behavior, keyboard help and live-region DOM mutation
+were checked. Cleanup releases application references, not forensic byte erasure;
+UI cancellation does not prove backend cancellation. All earlier deployment and
+publication narratives below are historical.
+
+---
+
+# Historical reliability candidate — September 9, 2026
 
 ## Scope and source
 

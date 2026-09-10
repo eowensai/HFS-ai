@@ -7,6 +7,7 @@ traces or content-bearing screenshots. Requires test dependencies/Chromium.
 import contextlib
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -21,6 +22,9 @@ from ephemeral import config as cfg
 
 STATE = {'mode': 'success', 'calls': 0, 'last': None, 'reads': 0}
 UI_PARSE_RELEASE = threading.Event()
+REASON_RELEASE = threading.Event()
+WRITE_RELEASE = threading.Event()
+FINISH_RELEASE = threading.Event()
 DETAILS = {'family': cfg.PINNED_LLM_MODEL_FAMILY,
            'parameter_size': cfg.PINNED_LLM_MODEL_PARAMETER_SIZE,
            'quantization_level': cfg.PINNED_LLM_MODEL_QUANTIZATION}
@@ -82,11 +86,26 @@ class Boundary(BaseHTTPRequestHandler):
             self.send(503, {'error': {'message': 'synthetic busy', 'type': 'server_error'}})
             return
         if mode in {'pending', 'timeout'}:
-            time.sleep(4)
+            time.sleep(9)
         def event(text, reason=None):
             return ('data: ' + json.dumps({'id': 'synthetic', 'object': 'chat.completion.chunk',
                 'created': 0, 'model': cfg.LLM_MODEL_NAME,
                 'choices': [{'index': 0, 'delta': {'content': text}, 'finish_reason': reason}]}) + '\n\n').encode()
+        if mode == 'feedback_stream':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+            self.wfile.write(event('   ')); self.wfile.flush()
+            REASON_RELEASE.wait(15)
+            hidden = event('').replace(b'"content": ""', b'"reasoning": "PRIVATE_BROWSER_REASONING_SENTINEL"')
+            self.wfile.write(hidden); self.wfile.flush()
+            WRITE_RELEASE.wait(15)
+            self.wfile.write(event('<think>PRIVATE_BROWSER_INLINE_SENTINEL</think>Visible healthy streaming answer with enough text to pass the filter. '))
+            self.wfile.flush()
+            FINISH_RELEASE.wait(15)
+            self.wfile.write(event('Finished.', 'stop') + b'data: [DONE]\n\n'); self.wfile.flush()
+            return
         self.send(200, event('Synthetic boundary answer.', None if mode == 'interrupted' else 'stop') + b'data: [DONE]\n\n', 'text/event-stream')
 
 
@@ -119,7 +138,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     endpoint = f'http://127.0.0.1:{server.server_port}'
     env = dict(os.environ, LLM_BASE_URL=endpoint + '/v1', TIKA_URL=endpoint,
-               LLM_SUPPORTS_VISION='false', TIKA_TIMEOUT_S='3', LLM_REQUEST_TIMEOUT_S='3',
+               LLM_SUPPORTS_VISION='false', TIKA_TIMEOUT_S='3', LLM_REQUEST_TIMEOUT_S='8',
                MAX_UPLOAD_COUNT='2', MAX_UPLOAD_TOTAL_BYTES='30', MAX_EXTRACTED_BYTES='12')
     proc = subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', 'ephemeral_app.py',
                              '--server.port=18502', '--server.address=127.0.0.1'],
@@ -139,21 +158,65 @@ def main():
             a = context.new_page(); a.goto('http://127.0.0.1:18502')
             STATE['mode'] = 'ui_pending'
             submit(a, 'Keep this synthetic prompt visible', [fixture('preview.txt')])
-            expect(a.get_by_text('Reading a file…', exact=True)).to_be_visible(timeout=10_000)
+            expect(a.get_by_role('status').filter(has_text='Reading file 1 of 1…')).to_be_visible(timeout=10_000)
             user_text = a.locator('[class*="st-key-user-"] [data-testid="stMarkdownContainer"]').filter(
                 has_text='Keep this synthetic prompt visible')
             expect(user_text).to_have_count(1, timeout=500)
             UI_PARSE_RELEASE.set()
-            expect(a.get_by_text('Waiting for model response…', exact=True)).to_be_visible(timeout=10_000)
+            expect(a.get_by_role('status').filter(has_text='Waiting for the AI…')).to_be_visible(timeout=10_000)
             expect(user_text).to_have_count(1, timeout=500)
             expect(a.locator('.attachment-meta')).to_contain_text('partial')
-            assert a.get_by_test_id('stAlert').filter(has_text='Waiting for model response').count() == 0
+            assert a.get_by_test_id('stAlert').filter(has_text='Waiting for the AI').count() == 0
             assert a.get_by_test_id('stChatInputTextArea').get_attribute('maxlength') is None
             expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
             wait_idle(a)
             expect(user_text).to_have_count(1)
             reset(a)
             print('PASS browser submitted prompt stays visible, quiet status, no composer counter', flush=True)
+            # Real HTTP stream -> installed SDK -> filter -> fragment rendering.
+            STATE['mode'] = 'feedback_stream'
+            submit(a, 'Synthetic feedback lifecycle')
+            stage = a.get_by_role('status').filter(has_text='Waiting for the AI…')
+            expect(stage).to_be_visible(timeout=10_000)
+            expect(a.get_by_text('This request’s budget:', exact=False)).to_be_visible()
+            a.evaluate('''() => {window.__stageChanges=[];
+                window.__stageObserver=new MutationObserver(ms => {for(const m of ms) {
+                    if(m.target.parentElement?.closest('[role="status"]')) window.__stageChanges.push(m.target.textContent);
+                }}); window.__stageObserver.observe(document.body,{subtree:true,characterData:true,childList:true});}''')
+            a.wait_for_timeout(1600)
+            expect(stage).to_be_visible()
+            timer = stage.locator('xpath=ancestor::div[@data-testid="stHorizontalBlock"][1]')
+            assert re.search(r'· [1-9][0-9]*s', timer.inner_text())
+            stage_box = stage.bounding_box()
+            timer_box = timer.locator('span[aria-hidden=true]').bounding_box()
+            assert 0 <= timer_box['x'] - stage_box['x'] - stage_box['width'] <= 24
+            assert a.evaluate('window.__stageChanges.length') == 0
+            assert not a.get_by_text('Thinking…', exact=True).count()
+            REASON_RELEASE.set()
+            expect(a.get_by_role('status').filter(has_text='Thinking…')).to_be_visible(timeout=5_000)
+            WRITE_RELEASE.set()
+            expect(a.get_by_text('Visible healthy streaming answer', exact=False)).to_be_visible(timeout=5_000)
+            assert not a.get_by_text('Incomplete reply', exact=False).count()
+            assert not a.get_by_role('status').filter(has_text=re.compile('Waiting|Thinking')).count()
+            assert 'PRIVATE_BROWSER' not in a.locator('body').inner_text()
+            FINISH_RELEASE.set()
+            wait_idle(a)
+            expect(a.get_by_text('Conversation budget:', exact=False)).to_be_visible()
+            assert 'PRIVATE_BROWSER' not in str(STATE['last'])
+            assert all('PRIVATE_BROWSER' not in f.locator('body').inner_text() for f in a.frames)
+            a.evaluate('window.__stageObserver.disconnect()')
+            # Native popover is usable by keyboard, including a narrow composer.
+            a.set_viewport_size({'width':390,'height':844})
+            help_button = a.get_by_role('button', name='Budget help')
+            help_button.focus(); a.keyboard.press('Enter')
+            expect(a.get_by_text('This is the app’s conservative estimate', exact=False)).to_be_visible()
+            a.keyboard.press('Escape')
+            box = a.get_by_test_id('stChatInputTextArea').bounding_box()
+            assert box and box['x'] >= 0 and box['x'] + box['width'] <= 391
+            a.set_viewport_size({'width':1280,'height':900})
+            reset(a)
+            assert not a.get_by_text('Conversation budget', exact=False).count()
+            print('PASS browser stage timer, honest reasoning, private filtered streaming, cached budget and keyboard/mobile help', flush=True)
             for mode in ['busy', 'interrupted', 'timeout']:
                 STATE['mode'] = mode
                 before = STATE['calls']
@@ -161,6 +224,10 @@ def main():
                 expect(a.get_by_role('button', name='Retry response')).to_be_visible(timeout=15_000)
                 assert STATE['calls'] == before + 1
                 assert not a.locator('[class*="st-key-assistant-"]').count() or mode == 'interrupted'
+                if mode == 'interrupted':
+                    expect(a.get_by_text('Incomplete reply', exact=False)).to_be_visible()
+                    for frame in a.frames[1:]:
+                        assert 'Synthetic boundary answer.' not in frame.locator('body').inner_text()
                 STATE['mode'] = 'success'
                 a.get_by_role('button', name='Retry response').click()
                 expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
@@ -208,9 +275,23 @@ def main():
                 assert STATE['calls'] == before
                 reset(a)
                 print(f'PASS browser {mode} prevents inference', flush=True)
+            STATE['mode'] = 'success'
+            submit(a, 'A' * 40000)
+            expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
+            wait_idle(a)
+            retained_caption = a.get_by_text('Conversation budget:', exact=False).inner_text()
+            before = STATE['calls']
+            submit(a, 'B' * 64000)
+            expect(a.get_by_test_id('stAlert').filter(has_text='reserved output tokens')).to_be_visible(timeout=15_000)
+            wait_idle(a)
+            assert STATE['calls'] == before
+            expect(a.get_by_text(retained_caption, exact=True)).to_be_visible()
+            assert len(a.locator('[class*="st-key-assistant-"]').all()) == 1
+            reset(a)
+            print('PASS browser full-request rejection restores retained budget and preserves history', flush=True)
             STATE['mode'] = 'pending'
             submit(a)
-            expect(a.get_by_text('Waiting for model response…', exact=True)).to_be_visible(timeout=10_000)
+            expect(a.get_by_role('status').filter(has_text='Waiting for the AI…')).to_be_visible(timeout=10_000)
             a.get_by_role('button', name='New Chat', exact=True).click()
             expect(a.locator('section.welcome-shell')).to_be_visible(timeout=10_000)
             wait_idle(a)
