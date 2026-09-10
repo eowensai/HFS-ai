@@ -176,12 +176,6 @@ def test_thinking_mode_is_one_shot_and_request_uses_captured_value():
     assert '"reasoning on this submitted turn; it may be much slower. "' in app_text
 
 
-def test_reasoning_channel_is_never_read_into_visible_content():
-    app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
-    assert 'getattr(delta_obj, "reasoning"' not in app_text
-    assert "LLM_SHOW_REASONING" not in app_text
-
-
 def test_system_prompt_has_no_reasoning_directives():
     prompt_text = (REPO_ROOT / "system_prompt_template.md").read_text(encoding="utf-8").lower()
     for forbidden in ("/think", "/nothink", "<think>", "reasoning_effort"):

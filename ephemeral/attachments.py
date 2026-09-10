@@ -85,7 +85,8 @@ def prepare_attachments(files, parse, vision, progress=lambda _: None, cancelled
             record = {'id': uuid.uuid4().hex, 'name': 'Upload batch', 'size': 0,
                       'kind': 'document', 'status': 'unavailable', 'reason': rejected}
             return [status_part(record)]
-        for upload in files:
+        total = len(files)
+        for ordinal, upload in enumerate(files, 1):
             if cancelled():
                 break
             record = attachment_record(upload)
@@ -100,7 +101,7 @@ def prepare_attachments(files, parse, vision, progress=lambda _: None, cancelled
                 elif record['kind'] == 'document' and remaining <= 0:
                     record['reason'] = 'Excluded: aggregate extracted-text limit reached.'
                 else:
-                    progress('Reading a file…')
+                    progress(f'Reading file {ordinal} of {total}…')
                     upload.seek(0)
                     # Bounded read also defends against misleading size metadata.
                     data = upload.read(min(record['size'], cfg.MAX_UPLOAD_BYTES) + 1)
