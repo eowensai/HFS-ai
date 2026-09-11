@@ -48,7 +48,7 @@
     "urllib3": "2.7.0"
   },
   "application_base_revision": "3c0c4ff",
-  "application_source_status": "Combined application upgrade; automated acceptance complete, app-only rollout prepared",
+  "application_source_status": "Deployed and automatically validated on port 8501; consolidated source prepared for review",
   "tika": {
     "upstream": "apache/tika:4.0.0-1-full@sha256:80072bb73dd320a9de9709beb0b16d14dd6d2680376f8d31e498f55b633ba593",
     "endpoint": "/tika/json/markdown",
@@ -73,5 +73,13 @@
     "services": [
       "ephemeral-app"
     ]
+  },
+  "application_code_revision": "947d53a62aac02d107335b955a4385ce70197fb6",
+  "application_release_directory": "/home/eko/ephemeral-llm/releases/python314-streamlit163-20260911",
+  "application_compose_checkpoint": "/home/eko/ephemeral-llm/docker-compose.pre-python314-streamlit163-20260911.yml",
+  "service_started_at": {
+    "ephemeral-app": "2026-09-11T23:26:52.406739898Z",
+    "ollama": "2026-09-09T03:31:37.343320368Z",
+    "tika-server": "2026-09-11T21:19:42.013019863Z"
   }
 }

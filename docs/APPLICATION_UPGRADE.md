@@ -105,6 +105,31 @@ Use their documented environment variables and retain the real backend's fixed p
 These are automated acceptance results, not a claim that a human has completed a
 spot test, a fresh Windows install, GPU cold start, or a remote peer/router test.
 
+## Deployed result
+
+The application was recreated at **2026-09-11 23:26:52 UTC** using image
+`sha256:a6d022949aaee2f670779110e99b6f4697396e393c8e336c53386fc6f8f36f83`.
+Health and browser access passed through localhost and the supported Windows
+address `http://172.16.64.243:8501`. Live ordinary chat, a fictional TXT upload
+through Tika/model, retained-file follow-up, sidebar reopening, Copy availability
+and New Chat passed. Empty desktop/mobile smoke checks passed on the deployed app.
+
+Tika and Ollama retained their exact previous image IDs and start times. The
+accepted model remains resident at 131,072 context, 26 GB and 100% GPU. The live
+package inventory exactly matches the accepted image. `scripts/verify_runtime.py`
+confirmed the 2/6/18 GiB limits, zero container swap and OOM kills, bounded tmpfs,
+core/dumpability controls, remote-debug disablement, CORS/XSRF, Host admission and
+zero reconnect TTL. The app's observed peak memory was 235,261,952 bytes during
+initial live checks. Body-free log checks found no runtime errors or synthetic
+conversation canaries. Its writable layer contained only preload bind-mount
+scaffolding, with no conversation/document artifacts. No external browser network
+requests occurred in the live synthetic flow.
+
+The preserved configuration is
+`/home/eko/ephemeral-llm/docker-compose.pre-python314-streamlit163-20260911.yml`.
+The source release is consolidated in a review branch; the original live checkout's
+remote and existing uncommitted work remain untouched.
+
 ## Application-only rollout and rollback
 
 The canonical installation is `/home/eko/ephemeral-llm/docker-compose.yml`.

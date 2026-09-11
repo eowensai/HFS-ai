@@ -128,6 +128,7 @@ def _capture_ui_screenshots() -> None:
 
             sidebar = desktop_page.get_by_test_id("stSidebar")
             assert abs(sidebar.bounding_box()["width"] - 304) < 2
+            sidebar.hover()  # Native desktop collapse control appears on hover.
             desktop_page.get_by_test_id("stSidebarCollapseButton").click()
             opener = desktop_page.get_by_test_id("stExpandSidebarButton")
             expect(opener).to_be_in_viewport()
