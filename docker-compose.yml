@@ -80,8 +80,8 @@ services:
   # --------------------------------------------------------------------------
   tika-server:
     # Locally built and digest-pinned. Fresh installs set TIKA_IMAGE in .env;
-    # the fallback preserves the current host. See deployment/tika/README.md.
-    image: ${TIKA_IMAGE:-shared-tika:3.3.2-20260907@sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c}
+    # Build the configured image first. See deployment/tika/README.md.
+    image: ${TIKA_IMAGE:?Build Tika 4 and set its validated image digest in .env}
     pull_policy: never
     container_name: tika-server
     # Equal memory and memory+swap limits prohibit Linux container swapping.
@@ -95,7 +95,7 @@ services:
     networks: [llm-net]
     environment:
       - LD_PRELOAD=/opt/ephemerai/libephemerai_nodump.so
-      - JAVA_TOOL_OPTIONS=-Xmx2g -Xms512m -XX:-CreateCoredumpOnCrash -XX:-HeapDumpOnOutOfMemoryError -XX:ErrorFile=/tmp/hs_err_pid%p.log
+      - JAVA_TOOL_OPTIONS=-Xmx512m -Xms128m -Djava.io.tmpdir=/tmp -Duser.home=/tmp -XX:-CreateCoredumpOnCrash -XX:-HeapDumpOnOutOfMemoryError -XX:ErrorFile=/tmp/hs_err_pid%p.log
     # Internal-only on llm-net. Probe the private IP; never publish this port.
     expose: ["9998"]
 
@@ -148,7 +148,6 @@ services:
       - LLM_PRESENCE_PENALTY=0.0
       - LLM_MAX_TOKENS=32768
       - TIKA_URL=http://tika-server:9998
-      - TIKA_CLIENT_ONLY=true
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       # - EPHEMERAL_TIMEZONE=America/New_York   # CUSTOMIZE: Override system timezone (optional)

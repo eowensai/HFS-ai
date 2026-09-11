@@ -36,7 +36,7 @@ def submit(page, text, files=None):
     if files:
         page.locator('input[type=file]').set_input_files(files)
         for item in files:
-            expect(page.get_by_text(item['name'], exact=True).first).to_be_visible()
+            expect(page.get_by_role('button', name=f"Remove {item['name']}", exact=True).first).to_be_visible()
     input_box(page).fill(text)
     page.get_by_test_id('stChatInputSubmitButton').click()
 
@@ -58,7 +58,8 @@ def main():
         browser = p.chromium.launch(headless=True)
         first, second = browser.new_context(), browser.new_context()
         a, b = first.new_page(), second.new_page()
-        a.goto(URL); b.goto(URL)
+        a.goto(URL)
+        b.goto(URL)
         expect(a.locator('section.welcome-shell')).to_be_visible(timeout=20_000)
         expect(b.locator('section.welcome-shell')).to_be_visible(timeout=20_000)
         submit(b, 'Remember this fictional label: SESSION-B-482. Reply with that label only.')
@@ -131,7 +132,9 @@ def main():
         print('PASS one-turn Thinking Mode browser reset', flush=True)
         assert 'SESSION-B-482' in b.locator('body').inner_text()
         print('PASS two isolated browser sessions', flush=True)
-        first.close(); second.close(); browser.close()
+        first.close()
+        second.close()
+        browser.close()
 
 
 if __name__ == '__main__':

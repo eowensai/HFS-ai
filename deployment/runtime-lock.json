@@ -1,17 +1,17 @@
 {
-  "recorded_date": "2026-09-08",
+  "recorded_date": "2026-09-11",
   "compose_project": "ephemeral-llm",
   "model_alias": "hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072",
   "model_manifest_sha256": "44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d",
   "model_manifest_path": "models/manifests/registry.ollama.ai/library/hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072/latest",
   "images": {
     "ephemeral-app": {
-      "ref": "ephemeral-llm-ephemeral-app:latest",
-      "id": "sha256:c7e0d7fd744261447296e17b0a43dfd735a9f8b71ded44949d99ab3829e986f4"
+      "ref": "ephemerai:tika4-20260911",
+      "id": "sha256:98a5ed85eca15665b0be99d6c4f082bfb08ace063b243c7c36e8854e02809a54"
     },
     "tika-server": {
-      "ref": "shared-tika:3.3.2-20260907",
-      "id": "sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c"
+      "ref": "ephemerai-tika:4.0.0-20260911",
+      "id": "sha256:409d64f021b90cb4c16938d72769ca44bfa7e56df548e83730d8edf9ffca7b75"
     },
     "ollama": {
       "ref": "ollama/ollama:0.32.15",
@@ -35,7 +35,28 @@
     "gpus": "2 x RTX 5060 Ti 16 GiB",
     "streamlit": "1.56.0",
     "pillow": "12.3.0",
-    "tika": "3.3.2",
-    "ollama": "0.32.15"
+    "tika": "4.0.0",
+    "ollama": "0.32.15",
+    "tika_java": "25.0.4",
+    "tika_ubuntu": "26.04.1 LTS",
+    "tesseract": "5.5.0"
+  },
+  "application_base_revision": "3c0c4ff",
+  "application_source_status": "Local Tika 4 upgrade; awaiting user spot test before GitHub publication",
+  "tika": {
+    "upstream": "apache/tika:4.0.0-1-full@sha256:80072bb73dd320a9de9709beb0b16d14dd6d2680376f8d31e498f55b633ba593",
+    "endpoint": "/tika/json/markdown",
+    "config": "/etc/tika/tika-config.json",
+    "workers": 2,
+    "worker_heap_mib": 1536,
+    "parent_heap_mib": 512,
+    "server_write_limit_characters": 262144,
+    "app_text_limit_utf8_bytes": 262144,
+    "app_parse_deadline_seconds": 180,
+    "worker_task_deadline_seconds": 150,
+    "worker_progress_deadline_seconds": 60
+  },
+  "shared_client_status": {
+    "hfs_knowledge": "stopped; systemd user service disabled; compatibility backlog POC-B056"
   }
 }

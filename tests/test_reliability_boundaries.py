@@ -57,7 +57,8 @@ def test_limits_reject_before_reads_or_parsing(monkeypatch, limit):
     class NoRead(io.BytesIO):
         def read(self, *a):
             pytest.fail('Oversized upload was read')
-    f = NoRead(b'abc'); f.name, f.type, f.size = 'synthetic.txt', 'text/plain', 3
+    f = NoRead(b'abc')
+    f.name, f.type, f.size = 'synthetic.txt', 'text/plain', 3
     if limit == 'count':
         monkeypatch.setattr(cfg, 'MAX_UPLOAD_COUNT', 1)
         files = [f, f]
@@ -186,7 +187,7 @@ class ParserResponse:
 
 def test_parser_prefix_limit_before_full_response_buffer(monkeypatch):
     from ephemeral import tika_client
-    response = ParserResponse(json.dumps({'X-TIKA:content': 'fictional content', 'X-TIKA:EXCEPTION:write_limit_reached': 'true'}).encode())
+    response = ParserResponse(json.dumps({'tk:content': 'fictional content', 'tk:exception:write-limit-reached': 'true'}).encode())
     calls = []
     def put(*a, **kw):
         calls.append(kw)
@@ -196,7 +197,7 @@ def test_parser_prefix_limit_before_full_response_buffer(monkeypatch):
     assert parsed == ParsedText('fiction', True)
     assert response.closed and response.reads == 2
     assert calls[0]['stream'] is True
-    assert calls[0]['headers']['writeLimit'] == '7'
+    assert 'writeLimit' not in calls[0]['headers']
     assert 'Header' not in str(calls[0]['headers'])
     assert calls[0]['timeout'] == (5, cfg.TIKA_TIMEOUT_S)
 
@@ -304,7 +305,7 @@ def test_filenames_are_json_data_not_status_authority():
 
 def test_parser_rejects_oversized_metadata_before_decoding(monkeypatch):
     from ephemeral import tika_client
-    response = ParserResponse(b'x' * 100000)
+    response = ParserResponse(b'x' * (tika_client.TIKA_RESPONSE_LIMIT_BYTES + 8192))
     monkeypatch.setattr(tika_client.requests, 'put', lambda *a, **k: response)
     with pytest.raises(ValueError, match='buffer limit'):
         parse_with_tika(b'synthetic', 'synthetic.txt', max_bytes=7)
@@ -313,8 +314,8 @@ def test_parser_rejects_oversized_metadata_before_decoding(monkeypatch):
 
 def test_parser_embedded_failure_is_partial_not_complete(monkeypatch):
     from ephemeral import tika_client
-    response = ParserResponse(json.dumps({'X-TIKA:content': 'fictional visible part',
-                                         'X-TIKA:EXCEPTION:embedded_exception': ['synthetic failure']}).encode())
+    response = ParserResponse(json.dumps({'tk:content': 'fictional visible part',
+                                         'tk:exception:embedded-exception': ['synthetic failure']}).encode())
     monkeypatch.setattr(tika_client.requests, 'put', lambda *a, **k: response)
     assert parse_with_tika(b'synthetic', 'synthetic.txt').partial
 

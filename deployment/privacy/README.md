@@ -24,7 +24,7 @@ The resource hook releases app-owned payloads without waiting for that TTL or
 another parse/user interaction.
 
 In-flight requests can still hold local copies until cancellation/unwinding or a
-network timeout. Tika's client timeout is 15 seconds; the model's timeout is 1800
+network timeout. Tika's client timeout is 180 seconds (worker task deadline 150 seconds); the model's timeout is 1800
 seconds with zero SDK retries. These are network timeouts, not a hard wall-clock
 limit on every active request. Framework upload/media/message queues, Python
 allocator remnants, native parser buffers, and shared model CPU/GPU/KV buffers

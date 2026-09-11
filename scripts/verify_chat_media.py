@@ -81,10 +81,12 @@ class MediaBoundary(Boundary):
             return ('data: ' + json.dumps({'id': 'synthetic', 'object': 'chat.completion.chunk',
                 'created': 0, 'model': STATE['last']['model'],
                 'choices': [{'index': 0, 'delta': {'content': text}, 'finish_reason': finish}]}) + '\n\n').encode()
-        self.wfile.write(event(ANSWER + '\n' + 'Streaming filler. ' * 30)); self.wfile.flush()
+        self.wfile.write(event(ANSWER + '\n' + 'Streaming filler. ' * 30))
+        self.wfile.flush()
         RELEASE.wait(30)
         with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-            self.wfile.write(event('\nCompleted.', 'stop') + b'data: [DONE]\n\n'); self.wfile.flush()
+            self.wfile.write(event('\nCompleted.', 'stop') + b'data: [DONE]\n\n')
+            self.wfile.flush()
 
 
 def start_app(path, port, env):
@@ -160,7 +162,8 @@ st.caption('Probe ready')
                     page.wait_for_timeout(50)
                 assert attempted and CANARY_HITS, 'Positive control failed to detect image request'
                 print('PASS unguarded pinned Streamlit automatically requests the synthetic local canary', flush=True)
-                attempted.clear(); CANARY_HITS.clear()
+                attempted.clear()
+                CANARY_HITS.clear()
                 for mode in ('guarded', 'label'):
                     for index in range(len(corpus)):
                         page.goto(f'http://127.0.0.1:18504/?case={index}&mode={mode}')
@@ -207,7 +210,8 @@ st.caption('Probe ready')
                 popup.value.wait_for_timeout(250)
                 assert attempted, 'Explicit link click should attempt navigation'
                 print('PASS ordinary formatting and links retained; navigation requires explicit click', flush=True)
-                context.close(); browser.close()
+                context.close()
+                browser.close()
     finally:
         RELEASE.set()
         for process in processes:
@@ -215,8 +219,10 @@ st.caption('Probe ready')
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                process.kill(); process.wait(timeout=5)
-        server.shutdown(); server.server_close()
+                process.kill()
+                process.wait(timeout=5)
+        server.shutdown()
+        server.server_close()
         STATE['last'] = None
 
 

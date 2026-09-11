@@ -3,7 +3,7 @@
 EphemerAI is a local document-and-image chat application running on a Windows 11
 workstation through WSL2 and Docker. Prompts and files are processed by local
 Ollama and Apache Tika services. This repository is the **EphemerAI source and
-installation guide for the system verified on September 8, 2026**.
+installation guide for the system verified on September 11, 2026**.
 
 ![EphemerAI homepage](Ephemeral%20Screenshot.jpg)
 
@@ -16,7 +16,7 @@ from host-specific setup choices and remaining limitations.
 - The deployed Streamlit UI, responsive layout, document/image handling, readable
   assistant formatting, copy controls, and fictional regression tests.
 - The fixed shared Qwen model definition and exact accepted model manifest.
-- Docker Compose, the signed Tika maintenance build, core-dump policy source,
+- Docker Compose, the pinned Tika 4 full-image build, core-dump policy source,
   bounded RAM/tmpfs, and zero Linux container swap configuration.
 - Windows logon/WSL forwarding scripts and detailed fresh-host installation,
   app-update and verification instructions.
@@ -38,7 +38,7 @@ not a dependency on the HFS Knowledge application.
 | Context / output ceiling | 131,072 / 32,768 tokens |
 | GPU profile | 66 layers, Q8 KV, Flash Attention, batch 128, embedded MTP 2 |
 | Parallelism | One loaded model and one parallel inference slot |
-| Parser | Local verified Tika 3.3.2 full image, including OCR/native helpers |
+| Parser | Tika 4.0.0 full image; Markdown extraction, OCR/native helpers |
 | Linux memory caps | App 2 GiB; Tika 6 GiB; Ollama 18 GiB; zero container swap |
 
 The validated host has two RTX 5060 Ti 16 GiB GPUs and approximately 30 GiB
@@ -52,6 +52,20 @@ Ordinary requests explicitly use medium reasoning. **Thinking Mode** selects
 `xhigh` for one submission and resets off; native callers use `think: "max"` for
 that one request. Reasoning deltas and embedded thought blocks are filtered from
 visible answers. The output ceiling is 32,768 tokens in either mode.
+
+## Document extraction
+
+Tika 4 supplies Markdown headings, lists and tables to the model. EphemerAI keeps
+Word comment authors in a labeled attribution section and preserves usable partial
+results with a warning. OCR and supported formats remain available; this is not a
+guarantee of better answers or perfect layout recognition. The model is unchanged.
+
+Limits remain 50 MiB per upload, eight files / 64 MiB per submission, 180 seconds
+per parse, 256 KiB extracted UTF-8 text per file and 512 KiB per submission. The
+server separately limits extracted characters to 262,144 and worker tasks to 150
+seconds. Markdown syntax consumes some text budget. HFS Knowledge is parked
+pending its own Tika 4 adapter and ingestion-limit decision. See the
+[Tika 4 change record](docs/TIKA4_UPGRADE.md).
 
 ## Privacy and access
 
@@ -80,7 +94,7 @@ internet without a separately designed authentication/TLS boundary.
 ## Install or update
 
 - **Fresh workstation:** follow the [complete setup guide](System%20Deployment%20Guide.md).
-- **Downloads during setup:** pull Ollama, build Tika from the signed Apache jar,
+- **Downloads during setup:** pull Ollama, build Tika from the digest-pinned official full distribution,
   and download `unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M` from Hugging Face. Model weights
   and container images are not part of the repository or source ZIP.
 - **Update an existing shared installation:** finish active requests, then rebuild
@@ -110,7 +124,7 @@ For browser tests, install the Playwright Chromium runtime in the development
 environment, then run `python scripts/ui_smoke.py`. Never test with real HFS data
 or restart shared services merely to test this UI. See [validation](docs/VALIDATION.md)
 for the published baseline. The [reliability handoff](docs/RELIABILITY_READINESS.md)
-records the scoped candidate changes, limits, current checks and remaining lint debt.
+records the scoped candidate changes, limits, current checks and validation history.
 
 The application code is MIT-licensed; model weights and bundled upstream software
 retain their own licenses. See [LICENSE.md](LICENSE.md).

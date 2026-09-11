@@ -1,5 +1,9 @@
 # CURRENT budget UI removal — September 10, 2026
 
+> September 11 update: Tika 4 implementation and current validation are recorded
+> in [TIKA4_UPGRADE.md](TIKA4_UPGRADE.md). Earlier parser/configuration/lint findings
+> below are historical snapshots, not deployment instructions.
+
 Based on freshly verified main `8aa2e8c3e37140cd20dc3f759b60b6eeece1b737`
 (the merge of PR #6). Branch: `codex/remove-budget-ui`. Installed runtime:
 `6a5b884596437055da4da8e717300cce9e7e9b41`, image

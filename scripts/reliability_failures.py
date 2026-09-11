@@ -58,7 +58,7 @@ class Boundary(BaseHTTPRequestHandler):
                     'digest': cfg.PINNED_LLM_MODEL_DIGEST,
                     'context_length': 65536 if STATE['mode'] == 'mismatch' else 131072}]})
         else:
-            self.send(200, b'synthetic parser', 'text/plain')
+            self.send(200, b'Apache Tika 4.0.0', 'text/plain')
 
     def do_PUT(self):
         data = self.rfile.read(int(self.headers['Content-Length']))
@@ -68,11 +68,11 @@ class Boundary(BaseHTTPRequestHandler):
         if STATE['mode'] == 'slow_parser':
             time.sleep(4)
         if data == b'bad':
-            self.send(200, {'X-TIKA:content': ''})
+            self.send(200, {'tk:content': ''})
         elif STATE['mode'] == 'failed_parser':
             self.send(500, b'controlled failure', 'text/plain')
         else:
-            self.send(200, {'X-TIKA:content': 'Fictional parsed code 731.', 'X-TIKA:EXCEPTION:write_limit_reached': 'true'})
+            self.send(200, {'tk:content': 'Fictional parsed code 731.', 'tk:exception:write-limit-reached': 'true'})
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
@@ -100,15 +100,18 @@ class Boundary(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Connection', 'close')
             self.end_headers()
-            self.wfile.write(event('   ')); self.wfile.flush()
+            self.wfile.write(event('   '))
+            self.wfile.flush()
             REASON_RELEASE.wait(15)
             hidden = event('').replace(b'"content": ""', b'"reasoning": "PRIVATE_BROWSER_REASONING_SENTINEL"')
-            self.wfile.write(hidden); self.wfile.flush()
+            self.wfile.write(hidden)
+            self.wfile.flush()
             WRITE_RELEASE.wait(15)
             self.wfile.write(event('<think>PRIVATE_BROWSER_INLINE_SENTINEL</think>Visible healthy streaming answer with enough text to pass the filter. '))
             self.wfile.flush()
             FINISH_RELEASE.wait(15)
-            self.wfile.write(event('Finished.', 'stop') + b'data: [DONE]\n\n'); self.wfile.flush()
+            self.wfile.write(event('Finished.', 'stop') + b'data: [DONE]\n\n')
+            self.wfile.flush()
             return
         self.send(200, event('Synthetic boundary answer.', None if mode == 'interrupted' else 'stop') + b'data: [DONE]\n\n', 'text/event-stream')
 
@@ -122,7 +125,7 @@ def submit(page, text='Synthetic question', files=None):
     if files:
         page.locator('input[type=file]').set_input_files(files)
         for f in files:
-            expect(page.get_by_text(f['name'], exact=True).first).to_be_visible()
+            expect(page.get_by_role('button', name=f"Remove {f['name']}", exact=True).first).to_be_visible()
     page.get_by_test_id('stChatInputTextArea').fill(text)
     page.get_by_test_id('stChatInputSubmitButton').click()
 
@@ -161,7 +164,8 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context()
-            a = context.new_page(); a.goto('http://127.0.0.1:18502')
+            a = context.new_page()
+            a.goto('http://127.0.0.1:18502')
             STATE['mode'] = 'ui_pending'
             submit(a, 'Keep this synthetic prompt visible', [fixture('preview.txt')])
             expect(a.get_by_role('status').filter(has_text='Reading file 1 of 1…')).to_be_visible(timeout=10_000)
@@ -307,14 +311,17 @@ def main():
             expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
             assert len(STATE['last']['messages']) == 2
             print('PASS browser New Chat while pending; stale reply excluded', flush=True)
-            context.close(); browser.close()
+            context.close()
+            browser.close()
     finally:
         proc.terminate()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            proc.kill(); proc.wait(timeout=5)
-        server.shutdown(); server.server_close()
+            proc.kill()
+            proc.wait(timeout=5)
+        server.shutdown()
+        server.server_close()
         STATE['last'] = None
 
 

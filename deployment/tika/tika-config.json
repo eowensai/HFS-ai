@@ -1,0 +1,39 @@
+{
+  "server": {
+    "endpoints": [
+      "tika",
+      "version"
+    ],
+    "allowPipes": false,
+    "allowPerRequestConfig": false,
+    "maxRequestSizeBytes": 52428800
+  },
+  "pipes": {
+    "numClients": 2,
+    "forkedJvmArgs": [
+      "-Xms128m",
+      "-Xmx1536m",
+      "-XX:ActiveProcessorCount=2",
+      "-Djava.io.tmpdir=/tmp",
+      "-Duser.home=/tmp",
+      "-XX:-CreateCoredumpOnCrash",
+      "-XX:-HeapDumpOnOutOfMemoryError",
+      "-XX:ErrorFile=/tmp/hs_err_pid%p.log"
+    ],
+    "tempDirectory": "/tmp",
+    "maxWaitForClientMillis": 5000,
+    "startupTimeoutMillis": 60000,
+    "maxInlineBytes": 10000000,
+    "maxIpcPayloadBytes": 16777216
+  },
+  "parse-context": {
+    "output-limits": {
+      "writeLimit": 262144,
+      "throwOnWriteLimit": true
+    },
+    "timeout-limits": {
+      "totalTaskTimeoutMillis": 150000,
+      "progressTimeoutMillis": 60000
+    }
+  }
+}
