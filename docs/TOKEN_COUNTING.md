@@ -30,9 +30,10 @@ loading failure prevents dispatch with a retryable error; it does not silently
 substitute the old byte rule. Cached numeric snapshots use the same measurement
 function as admission. No backend counting request runs per turn or per refresh.
 
-No production dependency, framework, model, backend service, network setting, or
-UI layout changed. The percentage caption and help remain pending a separate UI
-request; this change targets admission only.
+The counting correction changed no production dependency, framework, model,
+backend service, network setting, or UI layout. A subsequent presentation-only
+change removed the percentage caption, Budget help, and near-limit copy reminder.
+Canonical counting, snapshots, admission checks, and rejection errors remain intact.
 
 ## Deliberately conservative cases
 

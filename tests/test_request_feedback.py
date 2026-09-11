@@ -303,7 +303,7 @@ def test_invalid_capacity_feedback_does_not_break_error_cleanup():
 
 
 @pytest.mark.parametrize('tokens', [800, 950, 1000, 1001])
-def test_cached_budget_thresholds_render_without_extra_probes(monkeypatch, tokens):
+def test_budget_visuals_absent_without_changing_cached_measurement(monkeypatch, tokens):
     from pathlib import Path
 
     from streamlit.testing.v1 import AppTest
@@ -320,11 +320,17 @@ def test_cached_budget_thresholds_render_without_extra_probes(monkeypatch, token
     owner.budget_snapshot = BudgetSnapshot(owner.id, messages.revision, RequestBudget(tokens, 300, 1300))
     monkeypatch.setattr(llm_client, 'get_model_ctx', lambda: pytest.fail('Caption probed backend'))
     app.run()
-    expected = budget_caption(owner.budget_snapshot, owner.id, messages.revision)
-    assert expected in [c.value for c in app.caption]
+    saved = owner.budget_snapshot
+    assert saved.budget.input_tokens == tokens
+    assert saved.budget.fits is (tokens <= 1000)
+    assert not any('budget' in c.value.lower() or 'Copy anything you need' in c.value for c in app.caption)
+    assert not app.get('popover')
+    app.run()
+    assert owner.budget_snapshot is saved
     owner.budget_snapshot = BudgetSnapshot(owner.id, messages.revision - 1, RequestBudget(0, 300, 1300))
     app.run()
-    assert 'Conversation budget unavailable' in [c.value for c in app.caption]
+    assert not any('budget' in c.value.lower() for c in app.caption)
+    assert not app.get('popover')
     app.button(key='sidebar_new').click().run()
     assert not any('Conversation budget' in c.value for c in app.caption)
     assert owner.budget_snapshot is None

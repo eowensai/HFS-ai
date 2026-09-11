@@ -184,7 +184,8 @@ def main():
             submit(a, 'Synthetic feedback lifecycle')
             stage = a.get_by_role('status').filter(has_text='Waiting for the AI…')
             expect(stage).to_be_visible(timeout=10_000)
-            expect(a.get_by_text('This request’s budget:', exact=False)).to_be_visible()
+            assert not a.get_by_text('This request’s budget:', exact=False).count()
+            assert not a.get_by_role('button', name='Budget help').count()
             a.evaluate('''() => {window.__stageChanges=[];
                 window.__stageObserver=new MutationObserver(ms => {for(const m of ms) {
                     if(m.target.parentElement?.closest('[role="status"]')) window.__stageChanges.push(m.target.textContent);
@@ -207,22 +208,20 @@ def main():
             assert 'PRIVATE_BROWSER' not in a.locator('body').inner_text()
             FINISH_RELEASE.set()
             wait_idle(a)
-            expect(a.get_by_text('Conversation budget:', exact=False)).to_be_visible()
+            assert not a.get_by_text('Conversation budget:', exact=False).count()
             assert 'PRIVATE_BROWSER' not in str(STATE['last'])
             assert all('PRIVATE_BROWSER' not in f.locator('body').inner_text() for f in a.frames)
             a.evaluate('window.__stageObserver.disconnect()')
-            # Native popover is usable by keyboard, including a narrow composer.
+            # Removing budget visuals keeps the native narrow composer usable.
             a.set_viewport_size({'width':390,'height':844})
-            help_button = a.get_by_role('button', name='Budget help')
-            help_button.focus(); a.keyboard.press('Enter')
-            expect(a.get_by_text('This is the app’s conservative estimate', exact=False)).to_be_visible()
-            a.keyboard.press('Escape')
+            assert not a.get_by_role('button', name='Budget help').count()
+            expect(a.get_by_text('Thinking Mode', exact=True)).to_be_visible()
             box = a.get_by_test_id('stChatInputTextArea').bounding_box()
             assert box and box['x'] >= 0 and box['x'] + box['width'] <= 391
             a.set_viewport_size({'width':1280,'height':900})
             reset(a)
             assert not a.get_by_text('Conversation budget', exact=False).count()
-            print('PASS browser stage timer, honest reasoning, private filtered streaming, cached budget and keyboard/mobile help', flush=True)
+            print('PASS browser stage timer, honest reasoning, private filtered streaming, no budget visuals and usable mobile composer', flush=True)
             for mode in ['busy', 'interrupted', 'timeout']:
                 STATE['mode'] = mode
                 before = STATE['calls']
@@ -285,16 +284,17 @@ def main():
             submit(a, '1' * 40000)
             expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
             wait_idle(a)
-            retained_caption = a.get_by_text('Conversation budget:', exact=False).inner_text()
+            assert not a.get_by_text('Conversation budget:', exact=False).count()
             before = STATE['calls']
             submit(a, '2' * 64000)
             expect(a.get_by_test_id('stAlert').filter(has_text='reserved output tokens')).to_be_visible(timeout=15_000)
             wait_idle(a)
             assert STATE['calls'] == before
-            expect(a.get_by_text(retained_caption, exact=True)).to_be_visible()
+            assert not a.get_by_text('Conversation budget:', exact=False).count()
+            assert not a.get_by_role('button', name='Budget help').count()
             assert len(a.locator('[class*="st-key-assistant-"]').all()) == 1
             reset(a)
-            print('PASS browser full-request rejection restores retained budget and preserves history', flush=True)
+            print('PASS browser full-request rejection still prevents dispatch and preserves history', flush=True)
             STATE['mode'] = 'pending'
             submit(a)
             expect(a.get_by_role('status').filter(has_text='Waiting for the AI…')).to_be_visible(timeout=10_000)
