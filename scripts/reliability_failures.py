@@ -28,6 +28,7 @@ FINISH_RELEASE = threading.Event()
 DETAILS = {'family': cfg.PINNED_LLM_MODEL_FAMILY,
            'parameter_size': cfg.PINNED_LLM_MODEL_PARAMETER_SIZE,
            'quantization_level': cfg.PINNED_LLM_MODEL_QUANTIZATION}
+TOKENIZER_METADATA = {}
 
 
 class Boundary(BaseHTTPRequestHandler):
@@ -44,7 +45,9 @@ class Boundary(BaseHTTPRequestHandler):
             self.wfile.write(raw)
 
     def do_GET(self):
-        if self.path == '/api/tags':
+        if self.path == '/api/version':
+            self.send(200, {'version': '0.32.15'})
+        elif self.path == '/api/tags':
             self.send(200, {'models': [{'name': cfg.LLM_MODEL_NAME,
                                       'digest': cfg.PINNED_LLM_MODEL_DIGEST, 'details': DETAILS}]})
         elif self.path == '/api/ps':
@@ -75,7 +78,8 @@ class Boundary(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         if self.path == '/api/show':
             self.send(200, {'parameters': 'num_ctx 131072\nnum_predict 32768',
-                            'details': DETAILS, 'capabilities': ['completion', 'thinking', 'vision']})
+                            'details': DETAILS, 'capabilities': ['completion', 'thinking', 'vision'],
+                            'model_info': TOKENIZER_METADATA if body.get('verbose') else {}})
             return
         STATE['calls'] += 1
         STATE['last'] = body
@@ -134,6 +138,8 @@ def fixture(name, content=b'ok'):
 
 
 def main():
+    # Public vocabulary fixture only: no contact with a shared backend in this runner.
+    TOKENIZER_METADATA.update(json.loads(Path(os.environ['TOKENIZER_TEST_METADATA']).read_text()))
     server = ThreadingHTTPServer(('127.0.0.1', 0), Boundary)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     endpoint = f'http://127.0.0.1:{server.server_port}'
@@ -276,12 +282,12 @@ def main():
                 reset(a)
                 print(f'PASS browser {mode} prevents inference', flush=True)
             STATE['mode'] = 'success'
-            submit(a, 'A' * 40000)
+            submit(a, '1' * 40000)
             expect(a.get_by_text('Synthetic boundary answer.', exact=True)).to_be_visible(timeout=15_000)
             wait_idle(a)
             retained_caption = a.get_by_text('Conversation budget:', exact=False).inner_text()
             before = STATE['calls']
-            submit(a, 'B' * 64000)
+            submit(a, '2' * 64000)
             expect(a.get_by_test_id('stAlert').filter(has_text='reserved output tokens')).to_be_visible(timeout=15_000)
             wait_idle(a)
             assert STATE['calls'] == before

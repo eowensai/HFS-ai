@@ -13,6 +13,7 @@ import pytz
 import streamlit as st
 
 from ephemeral import config as cfg
+from ephemeral.chat_display import image_preview_bytes, label_html, render_chat_text
 from ephemeral.clipboard import render_copy_button, render_turn_copy_button
 from ephemeral.config import (
     APP_VERSION,
@@ -37,6 +38,7 @@ from ephemeral.llm_client import (
     get_llm_client,
     get_model_ctx,
     llm_alive,
+    measure_model_request,
     model_supports_images,
 )
 from ephemeral.request_lifecycle import (
@@ -368,7 +370,7 @@ def main():
             return f"{size:.1f} {units[unit_idx]}"
 
         def _render_attachment_badge(meta: dict) -> None:
-            filename = html_escape(meta.get("name", "Attachment"))
+            filename = label_html(meta.get("name", "Attachment"))
             size_label = _format_file_size(int(meta.get("size", 0) or 0))
             kind = meta.get("kind", "document")
             icon = "🖼️" if kind == "image" else "📄"
@@ -384,7 +386,7 @@ def main():
                     f'<div class="attachment-icon">{icon}</div>'
                     '<div class="attachment-copy">'
                     f'<div class="attachment-name">{filename}</div>'
-                    f'<div class="attachment-meta">{html_escape(subtitle)}</div>'
+                    f'<div class="attachment-meta">{label_html(subtitle)}</div>'
                     "</div>"
                     "</div>"
                 ),
@@ -400,19 +402,14 @@ def main():
                         if attachment:
                             _render_attachment_badge(attachment)
                         else:
-                            st.markdown(part.get("text", ""))
-                elif ptype == "image":
+                            render_chat_text(part.get("text", ""), st)
+                elif ptype in ("image", "image_url"):
                     try:
-                        st.image(part.get("data"), width=180)
-                    except Exception:
-                        st.error("I couldn't display one of the images in the chat UI.")
-                elif ptype == "image_url":
-                    try:
-                        st.image(part["image_url"]["url"], width=180)
+                        st.image(image_preview_bytes(part), width=180)
                     except Exception:
                         st.error("I couldn't display one of the images in the chat UI.")
         else:
-            st.markdown(content or "")
+            render_chat_text(content or "", st)
 
 
     def render_message(m):
@@ -440,7 +437,8 @@ def main():
     def execute(current):
         run_turn(current, parse=parse_with_tika, model_ready=llm_alive,
                  vision_ready=model_supports_images, context=get_model_ctx,
-                 request_builder=build_chat_completion_request, client=get_llm_client)
+                 request_builder=build_chat_completion_request, client=get_llm_client,
+                 measure=measure_model_request)
 
     def start_work(text, files, thinking, retry_message=None):
         if gate.running:
@@ -535,7 +533,7 @@ def main():
             with styled_chat_message("assistant", current.id + "-partial"):
                 if error:
                     st.caption("Incomplete reply — excluded from conversation history")
-                st.markdown(partial)
+                render_chat_text(partial, st)
         if error:
             st.error(error)
         if notice and DEBUG_MODE:

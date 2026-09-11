@@ -85,9 +85,25 @@ def main():
         assert 'SESSION-B-482' in b.locator('body').inner_text()
         assert 'SESSION-B-482' not in a.locator('body').inner_text()
         assert 'beacon.txt' not in b.locator('body').inner_text()
+        # Former byte-bound rejection: >98K bytes, but far fewer model tokens.
+        # Keep the fixture below extraction limits; check both ends and follow-up.
+        document = ('Beginning marker: START731.\n' +
+                    'The traveler followed the river home beneath a quiet sky.\n' * 1800 +
+                    '\nEnding marker: END482.').encode()
+        submit(a, 'Return the beginning and ending markers from the document. Reply with only the two markers.', [
+            {'name': 'long-synthetic.txt', 'mimeType': 'text/plain', 'buffer': document}])
+        answer(a, 'END482')
+        assert 'START731' in a.locator('[class*="st-key-assistant-"]').last.inner_text()
+        submit(a, 'What was the beginning marker in that document? Reply with only the marker.')
+        answer(a, 'START731')
+        print('PASS previously byte-rejected document -> Tika -> complete model context and follow-up', flush=True)
+        reset(a)
         submit(a, 'What number is in the image? Reply with the number only.', [
             {'name': 'beacon.png', 'mimeType': 'image/png', 'buffer': synthetic_scan('PNG')}])
         answer(a, '731')
+        preview = a.locator('[class*="st-key-user-"] img').last
+        expect(preview).to_be_visible()
+        assert preview.evaluate('(img) => img.complete && img.naturalWidth > 0')
         print('PASS real supported-image -> model -> browser', flush=True)
         reset(a)
         submit(a, 'What is the beacon code in the scanned page? Reply with the number only.', [

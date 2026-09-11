@@ -1,6 +1,8 @@
 import hashlib
 import logging
 import re
+import threading
+import time
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 
@@ -30,7 +32,54 @@ from ephemeral.config import (
     _ollama_base_url,
     reasoning_effort_for_turn,
 )
-from ephemeral.token_budget import ContextError, _heuristic_token_estimate
+from ephemeral.model_tokenizer import ModelTokenizer
+from ephemeral.token_budget import (
+    ContextError,
+    _heuristic_token_estimate,
+    budget_request,
+)
+
+_tokenizer_lock = threading.Lock()
+_model_tokenizer = None
+
+
+def get_model_tokenizer():
+    """Cache public vocabulary only, never conversation text or token IDs.
+
+    One bounded metadata fetch per app process; no inference, model loading,
+    disk cache, or per-turn/polling fetch. A failed load is retryable.
+    """
+    global _model_tokenizer
+    with _tokenizer_lock:
+        if _model_tokenizer is None:
+            try:
+                started = time.monotonic()
+                with requests.get(f'{_ollama_base_url()}/api/version', timeout=5) as version:
+                    version.raise_for_status()
+                    if version.json().get('version') != '0.32.15':
+                        raise ValueError('Unsupported prompt renderer version')
+                with requests.post(f'{_ollama_base_url()}/api/show',
+                                   json={'model': LLM_MODEL_NAME, 'verbose': True},
+                                   stream=True, timeout=(5, 15)) as response:
+                    response.raise_for_status()
+                    data = bytearray()
+                    for chunk in response.iter_content(64 * 1024):
+                        if len(data) + len(chunk) > 32 * 1024 * 1024 or time.monotonic() - started > 30:
+                            raise ValueError('Tokenizer metadata limit exceeded')
+                        data.extend(chunk)
+                    import json
+                    _model_tokenizer = ModelTokenizer(json.loads(data)['model_info'])
+            except (requests.RequestException, ValueError, KeyError, TypeError):
+                raise ContextError('Model token counting is unavailable. Request not sent; retry shortly.') from None
+        return _model_tokenizer
+
+
+def measure_model_request(request, capacity, reserve):
+    """Canonical admission, supplied with a verified, offline model tokenizer."""
+    try:
+        return budget_request(request, capacity, reserve, tokenizer=get_model_tokenizer())
+    except (ValueError, KeyError, TypeError):
+        raise ContextError('Model token counting is unavailable. Request not sent; retry shortly.') from None
 
 
 @st.cache_data(ttl=5, show_spinner=False)

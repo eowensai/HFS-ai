@@ -1,4 +1,109 @@
-# CURRENT reliability review and minimal feedback candidate — September 9, 2026
+# CURRENT local chat-media guard — September 10, 2026
+
+Installed and independently reviewed runtime source:
+`5af7b37919dc55caa1c8aeca3dfba921b35d17a6` on local branch
+`codex/local-chat-media-guard`, based on tokenizer handoff
+`3fe04d3bd29795b82a25aa6248420304aa24bc5e`. Image:
+`hfs-ai-ephemerai:media-5af7b37`. All **17 runtime Python files** match source.
+Subsequent handoff/publication commits change documentation and Git metadata only.
+Publication branch: `codex/token-counting-chat-media`, based on freshly verified
+main `d98f804378eae3bc4dca3faa2995122824065e72` (the merge of PR #5). Its source
+tree preserves both the tested tokenizer correction and media guard. The review
+SHAs above/below identify immutable local review commits. This is a tested local
+candidate proposed for review, not a merged release.
+
+Confirmed issue: message Markdown could automatically fetch image URLs through
+Streamlit, including during streaming. The display guard renders image-bearing
+messages literally, closes secondary tooltip and attachment-label routes, and
+restricts upload previews to bounded in-memory image data. Ordinary Markdown,
+explicit links, uploaded previews, model requests, token admission, retained
+content and copy source are preserved. Whole-message literal display deliberately
+sacrifices Markdown styling when image syntax is present. See
+[CHAT_MEDIA_GUARD.md](CHAT_MEDIA_GUARD.md) for behavior and reproductions.
+
+Actual validation:
+
+- Both required pytest entry points: **325 passed each**; syntax compilation passed.
+- Controlled Chromium positive control fetched a local canary from unguarded
+  Streamlit. **64 guarded chat/label cases** and actual app user/stream/final/copy
+  paths made **zero media requests**. Ordinary formatting, explicit link clicks,
+  exact clipboard source and narrow composer checks passed. Outside requests were
+  intercepted; no external server or private conversation was used.
+- Fresh-context read-only review of the immutable runtime commit above found
+  **no actionable findings**. The reviewer checked the pinned Streamlit renderer
+  and independently ran **27 focused tests**, all passing.
+- Installed real browser → app → Tika/model: **8 groups passed**, including TXT,
+  long-document retrieval/follow-up, supported-image display/answer, scanned PDF
+  OCR, unreadable-file follow-up, copy/export, one-turn Thinking and two sessions.
+- Installed empty desktop/mobile smoke, runtime/privacy checks, requirements
+  satisfaction, pip check, app-only build, relative links and diff checks passed.
+- Ruff: **55 remaining pre-existing findings; no additions** against the starting
+  baseline of 56. Consolidating duplicate image paths removed one existing finding.
+  Full-repository lint therefore still exits nonzero; no broad cleanup performed.
+
+The pre-task tokenizer app/configuration is preserved in ignored
+`.local/compose.pre-media.json`; exact recovery commands and current configuration
+are in `.local/RECOVERY.md`. Shared backend IDs, images, start times and mounts are
+unchanged. The separate dirty live checkout was not edited. No new production
+dependency, backend/model, network/authentication or unrelated repository change.
+
+These tests confirm and block the rendering route. They do not establish that
+private information previously leaked or that a malicious document successfully
+induced the live model. Plain Markdown copied into another application may be
+rendered differently. This is targeted testing, not a security certification.
+Earlier reports below describe historical candidates.
+
+---
+
+# HISTORICAL local context-counting candidate — September 10, 2026
+
+Runtime source: `be9e08c136f04628d5790ff9571dc5bd708f7f70` on local branch
+`codex/local-model-token-count`, based on the installed/published feedback candidate
+`29f2607fbe000addf4f735f7589a584500d4e934`. Local-only work: nothing pushed and no
+PR created or updated. The later handoff documentation commit changes no runtime code.
+The app image is `hfs-ai-ephemerai:tokens-be9e08c`. All 16 runtime Python files
+were hash-verified against the source. The prior feedback app/configuration is
+preserved in ignored `.local/compose.pre-tokenizer.json`; current recovery details
+are in `.local/RECOVERY.md`. Shared Ollama/Tika identities, start times and mounts
+remain unchanged, and the original dirty checkout was not edited.
+
+The real byte-per-token admission rule was overly restrictive. The replacement
+uses the installed model's verified vocabulary/merge rules and pinned renderer
+formatting locally. Output allowance/reserve stays 32,768; context stays 131,072.
+The UI caption/help/layout are unchanged. See [TOKEN_COUNTING.md](TOKEN_COUNTING.md)
+for method, provenance, reproduction commands, and remaining conservative cases.
+
+Actual validation:
+
+- Both required pytest entry points: **298 passed each**.
+- Independent test-only tokenizer/Unicode oracles: **1,005 cases passed**.
+- **9 synthetic real-backend input counts and rendered prompts matched exactly**.
+  The old 103,398 estimate became 19,499, matching Ollama, and is admitted.
+- Exact/one-token-over boundaries tested locally near 98,000 input tokens without
+  a full-context generation. Input and output allowance are not lowered.
+- Final controlled Chromium failure/retry runner: **13 groups passed**.
+- Real installed browser → app → Tika/model runner: **8 groups passed**, including
+  a >98-KB document with both-end retrieval and retained-document follow-up.
+- Installed desktop/mobile smoke, syntax compilation, requirements satisfaction,
+  pip check, app-only build, runtime/privacy checks, relative links and diff checks
+  passed. Ruff remains **56 identical pre-existing findings**, with no additions.
+- Fresh-context read-only review at `8a442cde893b0cfdb5be1664094c79fd6f2387c7`
+  found a metadata retry under the conversation lock. Corrected in
+  `a1232527158f8131dd60f0ed0bf0a3e07b861855`; reviewer independently ran all 36
+  tokenizer tests and verified the fix. Final reviewed runtime `be9e08c136f04628d5790ff9571dc5bd708f7f70`
+  has **no remaining actionable findings**. The correction also guards retained
+  result publication by owner liveness and content revision.
+
+No production dependency, model, framework, network/security setting or shared
+backend changed. Tokenizer metadata alone is cached in memory; chat text/token IDs
+are not cached or logged. Image allowance and exceptional oversized/unassigned-
+Unicode text bounds remain conservative. Separate message/upload/storage limits
+remain. Full-context/full-output stress, arbitrary future renderer versions and
+exact image token counts are not claimed. Earlier results below are historical.
+
+---
+
+# HISTORICAL reliability review and minimal feedback candidate — September 9, 2026
 
 ## Source, review and deployment state
 
