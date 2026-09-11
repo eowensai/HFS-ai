@@ -169,11 +169,13 @@ def conversation_room(messages, pending_bytes=0, *, pending_messages=2):
             retained_bytes(messages) + pending_bytes + cfg.MAX_RESPONSE_BYTES <= cfg.MAX_CONVERSATION_BYTES)
 
 
-def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder, client):
+def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder, client,
+             measure=budget_request):
     """Small injectable boundaries support failure tests without changing shared services."""
     stream = None
     capacity = None
     context_checked = False
+    measurement_started = measurement_ready = False
     receipts = [status_part(attachment_record(f)) for f in work.files[:cfg.MAX_UPLOAD_COUNT]]
     if len(work.files) > cfg.MAX_UPLOAD_COUNT:
         receipts = [status_part({'id': work.id, 'name': 'Upload batch', 'size': 0,
@@ -224,7 +226,9 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
             request = request_builder(payload, work.thinking)
         context_checked = True
         capacity = context()
-        budget = budget_request(request, capacity, cfg.LLM_OUTPUT_RESERVE_TOKENS)
+        measurement_started = True
+        budget = measure(request, capacity, cfg.LLM_OUTPUT_RESERVE_TOKENS)
+        measurement_ready = True
         with work.lock:
             work.check_running()
             work.request_budget = BudgetSnapshot(work.owner.id, work.messages.revision, budget)
@@ -349,17 +353,29 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
                 capacity = context()
             except Exception:  # noqa: BLE001 - optional measurement cannot mask the request outcome
                 capacity = None
+        retained = None
         with work.lock:
             if not work.owner.released and not work.cancelled.is_set():
                 work.owner.budget_snapshot = None
-                if capacity is not None:
+                if capacity is not None and (not measurement_started or measurement_ready):
                     try:
                         retained = request_builder([{'role': 'system', 'content': work.system},
                                                     *api_messages(work.messages)], False)
-                        measured = budget_request(retained, capacity, cfg.LLM_OUTPUT_RESERVE_TOKENS)
-                        work.owner.budget_snapshot = BudgetSnapshot(work.owner.id, work.messages.revision, measured)
+                        revision = work.messages.revision
                     except Exception:  # noqa: BLE001 - optional feedback must not mask an outcome or block cleanup
-                        work.owner.budget_snapshot = None
+                        retained = None
+        # Counting can initialize public model metadata. Never hold the owner
+        # lock over that work, or retry a failed admission count for feedback.
+        measured = None
+        if retained is not None:
+            try:
+                measured = measure(retained, capacity, cfg.LLM_OUTPUT_RESERVE_TOKENS)
+            except Exception:  # noqa: BLE001 - optional feedback cannot mask the request outcome
+                measured = None
+        with work.lock:
+            if (measured is not None and not work.owner.released and not work.cancelled.is_set()
+                    and work.messages.revision == revision):
+                work.owner.budget_snapshot = BudgetSnapshot(work.owner.id, revision, measured)
             work.text = ''
             work.system = ''
             work.stage = ''

@@ -1,9 +1,8 @@
-"""Conservative admission of the complete, already serialized model request.
+"""Admission of the complete, already serialized request with its output reserve.
 
-The pinned Ollama public API has no tokenizer endpoint. UTF-8 bytes upper-bound
-ordinary byte-BPE text tokens conservatively; this is an estimate, not an exact
-count. Fixed template/role allowances and a bounded-image allowance cover the
-pinned renderer. No previous-turn usage is used for admission.
+Production supplies the verified model tokenizer. The byte bound remains an
+explicit offline/test fallback; tokenizer loading failures must not select it.
+No previous-turn usage is used for admission.
 """
 from dataclasses import dataclass
 
@@ -71,21 +70,27 @@ def budget_caption(snapshot, conversation_id, revision, *, submitted=False):
     return f'{label}: ~{percent}% used' + (f' · {warning}' if warning else '')
 
 
-def budget_request(request, capacity, reserve, *, image_tokens=8192):
+def budget_request(request, capacity, reserve, *, image_tokens=8192, tokenizer=None):
     if not isinstance(capacity, int) or capacity <= 0:
         raise BudgetError('The running model context could not be verified. Request not sent; retry shortly.')
-    # Covers renderer scaffolding, start/end tokens, role labels and reasoning prefix.
+    if tokenizer is not None and all(isinstance(m['content'], str) for m in request['messages']):
+        from ephemeral.model_tokenizer import rendered_text
+        count = tokenizer.count(rendered_text(request))
+        return RequestBudget(count, max(reserve, request['max_tokens']), capacity)
+    # Multimodal requests keep the reviewed image/template bound. Count text
+    # with the same tokenizer; never count base64 bytes as language tokens.
+    text_count = tokenizer.count if tokenizer is not None else _heuristic_token_estimate
     count = 512
     for message in request['messages']:
-        count += 64 + _heuristic_token_estimate(message['role'])
+        count += 64 + text_count(message['role'])
         content = message['content']
         if isinstance(content, str):
-            count += _heuristic_token_estimate(content)
+            count += text_count(content)
         else:
             for part in content:
                 count += 32
                 if part['type'] == 'text':
-                    count += _heuristic_token_estimate(part['text'])
+                    count += text_count(part['text'])
                 elif part['type'] == 'image_url':
                     count += image_tokens
                 else:
