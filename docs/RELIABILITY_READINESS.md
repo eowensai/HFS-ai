@@ -1,4 +1,51 @@
-# CURRENT local chat-media guard — September 10, 2026
+# CURRENT budget UI removal — September 10, 2026
+
+Based on freshly verified main `8aa2e8c3e37140cd20dc3f759b60b6eeece1b737`
+(the merge of PR #6). Branch: `codex/remove-budget-ui`. Installed runtime:
+`6a5b884596437055da4da8e717300cce9e7e9b41`, image
+`hfs-ai-ephemerai:ui-6a5b884`. Later changes affect tests/documentation and
+publication metadata only. This is a tested local candidate proposed for review.
+
+The composer no longer shows conversation/request budget percentages, Budget help,
+or the related near-limit copy reminder. Thinking Mode and its own help, submitted
+prompt visibility, quiet timed request feedback, retry/errors, and copy/export
+remain. The complete `ephemeral/` package is byte-for-byte unchanged from main:
+model tokenization, canonical admission, numeric snapshots, reserves, output limits,
+and media protection are preserved. No new counters or backend probes.
+
+Actual validation:
+
+- Both required pytest entry points: **325 passed each**. Updated existing AppTest
+  cases verify hidden visuals at 80%, 95%, exact/over-limit and stale snapshots,
+  unchanged measurements, no extra probes, and New Chat cleanup.
+- **13 controlled Chromium groups passed**, including hidden budget controls during
+  waiting/completion/rejection, mobile composer, stage timing, private filtered
+  streaming, explicit retry, and over-limit rejection before dispatch.
+- **8 installed real browser → app → Tika/model groups passed**, including the
+  previously byte-rejected long document and follow-up, image previews, OCR,
+  copy/export, one-turn Thinking Mode and two sessions.
+- Python syntax, requirements satisfaction/pip check, app-only build, installed
+  runtime checks, desktop/mobile smoke, relative links and diff checks passed.
+  All **17 installed runtime Python files** match candidate source.
+- Ruff still reports **55 identical pre-existing findings**, with no additions.
+  Full-repository lint remains nonzero; no unrelated cleanup was performed.
+- Source diff inspected: the only application change removes the budget display
+  import, placeholder and render block. Prior independent reviews below remain
+  historical; no new independent review is claimed for this small UI deletion.
+
+The first controlled-browser run used an incorrect switch-role locator for
+Thinking Mode; corrected to its visible native label, then all groups passed.
+No application defect or backend change was needed for that test correction.
+
+The pre-task media-guard app/configuration remains available in ignored
+`.local/compose.pre-ui.json`; exact rollback is in `.local/RECOVERY.md`. Shared
+backend IDs, images, mounts and start times were unchanged. No production dependency,
+model, network/authentication, separate-repository or dirty live-checkout changes.
+Earlier reports below describe historical candidates.
+
+---
+
+# HISTORICAL local chat-media guard — September 10, 2026
 
 Installed and independently reviewed runtime source:
 `5af7b37919dc55caa1c8aeca3dfba921b35d17a6` on local branch

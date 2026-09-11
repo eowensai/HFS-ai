@@ -53,7 +53,6 @@ from ephemeral.session_lifecycle import (
     reset_conversation,
 )
 from ephemeral.tika_client import parse_with_tika, tika_alive
-from ephemeral.token_budget import BUDGET_HELP, budget_caption, budget_percent
 from ephemeral.turn_options import (
     THINKING_MODE_KEY,
     capture_thinking_mode_for_submission,
@@ -302,7 +301,6 @@ def main():
                 key=THINKING_MODE_KEY,
                 disabled=busy,
             )
-            budget_slot = st.empty()
 
     # Hide the welcome shell in the same run as the first submitted prompt so
     # initial-turn layout and composer spacing remain stable.
@@ -481,21 +479,6 @@ def main():
     def show_request():
         current = gate.active
         snapshot = current.snapshot() if current and current.owner is payloads else None
-        with payloads._lock:
-            revision = snapshot.revision if snapshot else st.session_state.messages.revision
-            measurement = snapshot.budget if snapshot else payloads.budget_snapshot
-            show_budget = bool(snapshot and not snapshot.done) or bool(st.session_state.messages)
-        # The external empty slot is replaced, not appended, on every fragment run.
-        with budget_slot.container():
-            if show_budget:
-                with st.container(horizontal=True, vertical_alignment="center", gap="small"):
-                    st.caption(budget_caption(measurement, payloads.id, revision,
-                                              submitted=bool(snapshot and not snapshot.done)), width="content")
-                    with st.popover("Budget help", type="tertiary", width="content"):
-                        st.write(BUDGET_HELP)
-                percent = budget_percent(measurement, payloads.id, revision)
-                if percent is not None and percent >= 95:
-                    st.caption("Copy anything you need before starting a new chat.")
         if current is None or current.owner is not payloads:
             if busy and not gate.running:
                 st.rerun()
