@@ -31,7 +31,7 @@ not a dependency on the HFS Knowledge application.
 
 | Component | Accepted baseline |
 |---|---|
-| Application | Python 3.11, Streamlit 1.56.0, Pillow 12.3.0 |
+| Application | Python 3.14.7, Streamlit 1.63.0, Pillow 12.3.0 |
 | Model server | Ollama 0.32.15 |
 | Model | Qwen3.8-27B, Unsloth UD-Q6_K_M |
 | Required alias | `hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072` |
@@ -52,6 +52,9 @@ Ordinary requests explicitly use medium reasoning. **Thinking Mode** selects
 `xhigh` for one submission and resets off; native callers use `think: "max"` for
 that one request. Reasoning deltas and embedded thought blocks are filtered from
 visible answers. The output ceiling is 32,768 tokens in either mode.
+
+See the [combined application upgrade record](docs/APPLICATION_UPGRADE.md) for
+version decisions, native file/image paste, validation and app-only rollback.
 
 ## Document extraction
 
@@ -107,13 +110,14 @@ internet without a separately designed authentication/TLS boundary.
 
 ## Development
 
-Use Python 3.11+ and an isolated environment. Production dependencies stay in
-`requirements.txt`; pytest, Ruff and Playwright are development-only.
+Use Python 3.14.7 and an isolated environment. Production dependencies are declared
+in `requirements.txt` and fully pinned in `requirements.lock`; pytest, Ruff and
+Playwright are development-only. The Docker base image is pinned by digest.
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r requirements.txt -c requirements.lock -r requirements-dev.txt
 python -m pytest -q
 pytest -q
 python -m py_compile ephemeral_app.py ephemeral/*.py scripts/verify_runtime.py

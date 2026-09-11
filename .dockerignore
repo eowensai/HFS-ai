@@ -67,6 +67,9 @@ downloads/
 *.zip
 
 deployment/tika/
+deployment/
+scripts/
+requirements-oracles.txt
 
 # Machine-specific candidate/test/recovery material must never enter an image.
 .local/

@@ -58,6 +58,10 @@ def examples(url):
         f'    ![indented]({url})', f'> - ![list]({url})',
         f'| Cell |\n| --- |\n| ![table]({url}) |',
         '**Bold** and *italic* [manual link](https://media.example.invalid/manual).',
+        '```mermaid\ngraph LR\nA-->B\n```',
+        f'```mermaid\ngraph LR\nA["<img src=\'{url}\'>"]\n```',
+        '> ~~~mermaid\ngraph LR\nA-->B',
+        '```&#109;ermaid\ngraph LR\nA-->B\n```',
     ]
 
 

@@ -85,15 +85,6 @@ def load_css(path: str = "theme.css") -> None:
 
 load_css()
 
-# ── Optional device detection ─────────────────────────────────────
-try:
-    from streamlit_browser_engine import device  # type: ignore
-
-    HAS_DEVICE_DETECTION = True
-except ImportError:
-    HAS_DEVICE_DETECTION = False
-    device = None  # type: ignore
-
 # ── Backend configuration ─────────────────────────────────────────
 DEFAULT_UPLOAD_PROMPT = os.getenv("DEFAULT_UPLOAD_PROMPT", "Please analyze the uploaded files.")
 
@@ -248,6 +239,11 @@ def main():
             export_html = build_conversation_html(st.session_state.messages)
             render_copy_button(export_md, export_html)
 
+        st.caption(f"Uploads: {cfg.MAX_UPLOAD_COUNT} files, "
+                   f"{min(50, cfg.MAX_UPLOAD_BYTES / (1024 * 1024)):g} MiB per file, "
+                   f"{cfg.MAX_UPLOAD_TOTAL_BYTES / (1024 * 1024):g} MiB total. "
+                   "Limits are checked on submission.")
+
         if DEBUG_MODE:
             with st.expander("System status", expanded=False):
                 dbg_thinking_mode = bool(st.session_state.get(THINKING_MODE_KEY, False))
@@ -275,8 +271,12 @@ def main():
         "Ask a question or attach files...",
         accept_file="multiple",
         height=68,
-        max_upload_size=min(50, max(1, cfg.MAX_UPLOAD_BYTES // (1024 * 1024))),
+        # Streamlit 1.63's browser checks decimal MB, but the app's reviewed
+        # limit is in bytes (50 MiB). Round the browser allowance up; Python
+        # rejects anything above the exact byte limit before parsing/inference.
+        max_upload_size=max(1, (min(50 * 1024 * 1024, cfg.MAX_UPLOAD_BYTES) + 999_999) // 1_000_000),
         disabled=busy,
+        submit_mode="disable",
         key="main_chat",
         on_submit=_capture_turn_options,
     )
@@ -285,10 +285,9 @@ def main():
         consume_submitted_thinking_mode(st.session_state) if prompt_in is not None else False
     )
 
-    # Streamlit internal API note (1.56): st._bottom draws into the same native
-    # bottom dock used by st.chat_input. Keeping the toggle in this dock avoids
+    # Streamlit's public bottom dock also contains st.chat_input. Keeping the toggle here avoids
     # viewport-fixed overlays that can interfere with chat streaming layout.
-    with st._bottom:
+    with st.bottom:
         with st.container(key="composer_toggle_row"):
             st.toggle(
                 "Thinking Mode",
@@ -425,11 +424,6 @@ def main():
     rendered_ids = {m.get("id") for m in history}
     for m in history:
         render_message(m)
-
-
-    # ── Mobile convenience button ─────────────────────────────────────
-    if HAS_DEVICE_DETECTION and device and device.is_mobile:
-        st.button("🔄 New Chat", key="mobile_new", width="stretch", on_click=reset_chat_session)
 
 
     def execute(current):

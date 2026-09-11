@@ -79,6 +79,10 @@ def check_backend():
         ('json', '{"list": [1, 2, 3], "enabled": true, "text": "Hello\\nworld"}'),
         ('whitespace', ' \r\nword\t\t\n \r next\u00a0word\n\n '),
         ('specials', 'Quote these strings: <|im_start|> <|im_end|> <think> </think>'),
+        # Unicode 15/16 assignments exercise Python 3.14's changed categories.
+        ('unicode_15_16', ('a\u0897b \u1c89\u1c8a \U000105c0\U000105c1 '
+                           '\U00010d40\U00010d41 \U00011bc0\U00011bc1 '
+                           '\U0001e4d0\U0001e4d1 ') * 20),
     ]:
         cases.append((name, [{'role': 'system', 'content': 'Synthetic tokenizer test.'},
                              {'role': 'user', 'content': text}], False))

@@ -20,6 +20,10 @@ from ephemeral.export import build_message_html, build_message_markdown
     '```md\n![code](https://example.invalid/image)\n```',
     '![incomplete',
     ':help[&#33;&#91;image&#93;&#40;https://example.invalid/image&#41;]',
+    '```mermaid\ngraph LR\nA-->B\n```',
+    '> ~~~mermaid\ngraph LR\nA-->B',
+    '```&#109;ermaid\ngraph LR\nA-->B\n```',
+    '```MERMAID\nnot yet a complete diagram',
 ])
 def test_possible_images_render_exact_literal_text(text):
     calls = []
@@ -53,6 +57,18 @@ def test_every_stream_prefix_uses_guard_without_state():
         prefix = answer[:end]
         render_chat_text(prefix, ui)
         assert calls == [('text' if '![' in prefix else 'markdown', prefix)]
+
+
+def test_diagram_stream_stays_literal_and_copy_preserves_fences():
+    answer = 'Introduction\n```mermaid\ngraph LR\nA-->B\n```\nAfterword'
+    for end in range(len(answer) + 1):
+        prefix = answer[:end]
+        calls = []
+        ui = SimpleNamespace(text=lambda s: calls.append(('text', s)),
+                             markdown=lambda s, **k: calls.append(('markdown', s)))
+        render_chat_text(prefix, ui)
+        assert calls == [('text' if 'mermaid' in prefix else 'markdown', prefix)]
+    assert answer in build_message_markdown({'role': 'assistant', 'content': answer})
 
 
 def test_html_labels_neutralize_markdown_and_html_without_losing_name():

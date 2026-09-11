@@ -40,6 +40,20 @@ def test_late_token_result_cannot_repopulate_released_cache():
     assert not cache
 
 
+def test_one_failed_close_does_not_retain_other_session_payloads():
+    class FailedClose:
+        def close(self):
+            raise OSError('Synthetic failure')
+    owner = ConversationPayloads()
+    owner.own(FailedClose())
+    upload = owner.own(io.BytesIO(b'Synthetic upload'))
+    messages = ConversationMessages(owner, [{'content': 'Synthetic message'}])
+    owner.release()
+    owner.release()
+    messages.append({'content': 'Late synthetic response'})
+    assert owner.released and not owner._owned and not messages and upload.closed
+
+
 def test_new_chat_clears_owned_payloads_and_preserves_another_session(monkeypatch):
     # AppTest hardcodes one session ID; supply distinct identities to the real
     # resource cache. The browser regression also checks actual WebSockets.

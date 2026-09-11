@@ -1,11 +1,12 @@
 # Current system — September 11, 2026
 
-This is the September 11 local Tika 4 deployment record. Platform inventory below
-was last comprehensively verified September 8; the parser, application images and
-service state were rechecked for this upgrade. Application work starts from
-`eowensai/HFS-ai` revision `3c0c4ff`, preserving the recent UI and reliability changes.
-See [Tika 4 changes and validation](TIKA4_UPGRADE.md). GitHub publication follows
-the user's spot test; this record does not claim it has already occurred.
+This record combines the September 11 Tika 4 deployment and the subsequent Python
+3.14 / Streamlit 1.63 application upgrade. The application started from the deployed
+`tika4-20260911` source, preserving fixes beyond GitHub main. Platform inventory was
+last comprehensively verified September 8; service identities and protections were
+rechecked for the application release. See [application changes and acceptance](APPLICATION_UPGRADE.md)
+and [the earlier Tika record](TIKA4_UPGRADE.md). Automated acceptance does not claim
+a human spot test or a fresh Windows installation.
 
 ## Workstation and runtime
 
@@ -20,7 +21,7 @@ the user's spot test; this record does not claim it has already occurred.
 | containerd / runc | 2.3.4 / 1.5.1 |
 | NVIDIA Container Toolkit / libnvidia-container | 1.19.0 / 1.19.0 |
 | Docker default runtime / image store | nvidia / containerd snapshotter |
-| Deployment / tested source snapshot | `/home/eko/ephemeral-llm/docker-compose.yml` / `releases/tika4-20260911` |
+| Deployment / tested source snapshot | `/home/eko/ephemeral-llm/docker-compose.yml` / `releases/python314-streamlit163-20260911` |
 | Compose project / network | `ephemeral-llm` / `ephemeral-llm_llm-net` |
 | Model volume | `ephemeral-llm_ollama-models` mounted at `/root/.ollama` |
 | Windows pilot address | `172.16.64.243` |
@@ -32,6 +33,11 @@ The former separate `hfs-ai-live` app Compose is superseded. Publication is prep
 in a separate HFS-ai branch; the old checkout's remote was not rewritten.
 
 ## Component identities
+
+The application uses Python **3.14.7**, Streamlit **1.63.0**, Requests **2.34.2**
+and pytz **2026.3.post1**. Pillow 12.3.0 and OpenAI SDK 1.97.2 are retained.
+Production dependencies are fully pinned; [package inventory](../deployment/app-packages.json)
+includes the resulting image's Python/build-tool and Debian package versions.
 
 The complete machine-readable record is
 [`deployment/runtime-lock.json`](../deployment/runtime-lock.json). It records
@@ -101,6 +107,7 @@ platform-update checkpoint; this is not inferred solely from the app directory.
 
 | Task / record reviewed | Current setup consequence |
 |---|---|
+| **Combined application upgrade**, September 11 | Python 3.14.7, Streamlit 1.63.0, Requests/timezone updates; app-only rollout, shared backends retained |
 | **Upgrade local EphemerAI to Tika 4**, September 11 | Tika 4.0.0/Java 25.0.4; Markdown client, bounded workers and comment attribution; HFS parked with data preserved |
 | **Replace and deploy shared Tika**, September 7 (historical) | Maintained Ubuntu 26.04 / released Java 21.0.12 / signed Tika 3.3.2; retained OCR/native tools and OOXML compatibility flags |
 | **Harden EphemerAI browser access**, including the user's network-policy correction | CORS/XSRF enabled; Windows UI Any/Any access is intentional because routers control admission; logon scripts refresh forwards without creating firewall rules |

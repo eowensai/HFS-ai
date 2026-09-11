@@ -1,6 +1,7 @@
 # Validation — September 8, 2026
 
-> Current September 11 Tika 4 validation: [TIKA4_UPGRADE.md](TIKA4_UPGRADE.md).
+> Current application validation: [Python 3.14 / Streamlit 1.63](APPLICATION_UPGRADE.md).
+> Parser validation: [TIKA4_UPGRADE.md](TIKA4_UPGRADE.md).
 > The dated results below remain historical evidence.
 
 This publication imports the currently deployed EphemerAI application and adds a

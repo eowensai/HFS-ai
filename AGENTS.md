@@ -56,18 +56,21 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
   A generic healthy Ollama endpoint or a different installed model is not sufficient.
 
 ## Runtime and Branding Targets
-- Target runtime is Python 3.10+.
-- Streamlit migration target is 1.56.0 for UI work.
+- Target runtime is Python 3.14.7.
+- Streamlit migration target is 1.63.0 for UI work.
 - Repository/package names may remain `EphemerAl`, but user-facing UI copy should use
   **EphemerAI** unless a broader rename is explicitly requested.
 
-## Streamlit 1.56 UI Guidance
-- `st.set_page_config(initial_sidebar_state=304)` is valid in Streamlit 1.56 and should
+## Streamlit 1.63 UI Guidance
+- `st.set_page_config(initial_sidebar_state=304)` is valid in Streamlit 1.63 and should
   be used when a 304px default sidebar is needed while preserving auto behavior.
-- `st.chat_message(..., width="stretch")` is valid in Streamlit 1.56; `"stretch"` is
+- `st.chat_message(..., width="stretch")` is valid in Streamlit 1.63; `"stretch"` is
   also the default.
-- `st.chat_input(..., height=68, max_upload_size=50)` is valid in Streamlit 1.56. Keep
-  Python-side upload size validation as defense-in-depth.
+- Streamlit 1.63's `max_upload_size` uses integer decimal MB in the browser.
+  Round the widget allowance up to 53 MB to admit exactly 50 MiB; Python must
+  enforce the actual 50 MiB limit before parsing/inference. The server's separate
+  51 MiB allowance accommodates multipart framing. Keep `submit_mode="disable"`
+  and the application's background-work guard together.
 - Prefer `st.iframe` over `streamlit.components.v1.html`/`components.html` for the
   sidebar copy button behavior.
 - Do not adopt `st.container(autoscroll=True)` unless chat history is moved into a
@@ -80,7 +83,7 @@ frontend, an Ollama LLM backend, and an Apache Tika document parsing server.
   air-gapped friendly.
 - Use a system font stack and standard font weights: 400, 500, 600, 700, 800.
 - CSS targeting Streamlit internals, `data-testid`, or generated DOM is brittle; add
-  comments on selectors that are new/changed for Streamlit 1.56.
+  comments on selectors that are new/changed for Streamlit 1.63.
 - Keep **New chat** and **Copy conversation** visible in the sidebar.
 - `st.menu_button` is allowed only for lower-frequency sidebar actions (Help, About,
   Settings, debug/status views).
@@ -168,7 +171,7 @@ When reviewing Codex changes, treat the following as high-priority checks:
 - loss of medium-reasoning-by-default behavior or the per-turn maximum-reasoning switch
 - incorrect context/output budgeting
 - broken copy-paste commands in deployment docs
-- changes that regress Streamlit 1.56 UI migration compatibility
+- changes that regress Streamlit 1.63 UI migration compatibility
 
 ## Testing
 - Verify Python syntax: `python -m py_compile ephemeral_app.py ephemeral/*.py`
@@ -209,10 +212,10 @@ When reviewing Codex changes, treat the following as high-priority checks:
 
 ## Repository expectations
 
-- This is a Streamlit 1.56 app.
+- This is a Streamlit 1.63 app.
 - The package layout is flat. The `ephemeral/` package lives at the repository root.
 - Pytest import resolution is configured in `pyproject.toml` with `pythonpath = ["."]`.
-- Do not change `st.set_page_config(initial_sidebar_state=304)`. The integer is intentional Streamlit 1.56 behavior: auto sidebar behavior with a 304px initial sidebar width.
+- Do not change `st.set_page_config(initial_sidebar_state=304)`. The integer is intentional Streamlit 1.63 behavior: auto sidebar behavior with a 304px initial sidebar width.
 - Do not replace that value with `"auto"` unless the user explicitly asks for a sidebar UX change.
 - Do not add production dependencies without explicit user approval.
 - Prefer small, focused PRs.

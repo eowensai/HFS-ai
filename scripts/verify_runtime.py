@@ -46,12 +46,18 @@ def main():
                                        '/root/.ollama/' + LOCK['model_manifest_path']])
     assert hashlib.sha256(manifest).hexdigest() == LOCK['model_manifest_sha256'], 'Model identity mismatch'
     probe = run('exec', 'ephemeral-app', 'python', '-c',
-                'import ctypes,resource;from streamlit import config;'
+                'import ctypes,resource,sys,os;from streamlit import config;'
+                'from importlib.metadata import version;'
+                'assert sys.version_info[:3]==(3,14,7);'
+                'assert version("streamlit")=="1.63.0";'
+                'assert os.environ.get("PYTHON_DISABLE_REMOTE_DEBUG")=="1";'
                 'assert ctypes.CDLL(None).prctl(3,0,0,0,0)==0;'
                 'assert resource.getrlimit(resource.RLIMIT_CORE)==(0,0);'
                 'assert config.get_option("server.enableCORS");'
                 'assert config.get_option("server.enableXsrfProtection");'
                 'assert config.get_option("server.disconnectedSessionTTL")==0;'
+                'assert config.get_option("server.maxUploadSize")==51;'
+                'assert config.get_option("server.allowedHosts")==["localhost","127.0.0.1","172.16.64.243"];'
                 'print("app protections verified")')
     print(json.dumps({'containers': results, 'model_identity': 'verified', 'application': probe}, indent=2))
     print('After a fictional prompt, also inspect: docker exec ollama ollama ps')

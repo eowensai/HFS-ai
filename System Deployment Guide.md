@@ -1,6 +1,6 @@
 # EphemerAI — System Deployment Guide
 
-This guide rebuilds the September 8, 2026 deployment on a Windows 11 workstation.
+This guide rebuilds the September 11, 2026 deployment on a Windows 11 workstation.
 It also explains safe updates when HFS Knowledge already shares its backend.
 Commands marked **PowerShell (Admin)** run on Windows. Commands marked **Ubuntu**
 run inside WSL. Do not run fresh-host installation steps on a working shared host.
@@ -157,6 +157,18 @@ cd ~/ephemeral-llm
 Use the tested release branch or the accepted default branch after publication. Keep the entire extracted repository,
 including hidden files such as `.streamlit/config.toml`. Compose fixes the project
 name at `ephemeral-llm`, so its volume/network names do not depend on the ZIP folder.
+
+The application Dockerfile pins Python **3.14.7** by image digest and installs
+Streamlit **1.63.0** and the complete tested dependency set from `requirements.lock`.
+The container supplies Python; upgrading Ubuntu's system Python is unnecessary.
+Development/tests use Python 3.14.7 as well. See the
+[application upgrade record](docs/APPLICATION_UPGRADE.md) for acceptance and rollback.
+
+Before building for a different site address, update both `server.allowedHosts`
+and `server.corsAllowedOrigins` in `.streamlit/config.toml`. The former contains
+hostnames/IPs without schemes or ports; the latter contains full UI origins.
+Keep localhost entries and CORS/XSRF protections enabled. The recorded deployment
+supports localhost, 127.0.0.1 and 172.16.64.243; it does not allow arbitrary Host names.
 
 For a **fresh installation**, first build the no-dump policy and the configured Tika 4 full image:
 

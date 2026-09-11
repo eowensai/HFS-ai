@@ -4,9 +4,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_requirements_pin_streamlit_156():
+def test_requirements_pin_streamlit_163():
     requirements_text = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
-    assert "streamlit==1.56.0" in requirements_text
+    assert "streamlit==1.63.0" in requirements_text
 
 
 def test_theme_css_keeps_root_and_chat_role_selectors():
@@ -156,7 +156,7 @@ def test_new_chat_labels_and_placeholder_contracts():
     app_text = (REPO_ROOT / "ephemeral_app.py").read_text(encoding="utf-8")
     assert "Ask a question or attach files..." in app_text
     assert "New Chat" in app_text
-    assert "🔄 New Chat" in app_text
+    assert 'key="sidebar_new"' in app_text
 
 
 def test_docker_service_name_defaults_are_preserved():

@@ -1,5 +1,8 @@
 # Tika 4 upgrade — September 11, 2026
 
+> Subsequent application acceptance and current source/deployment status:
+> [Python 3.14 / Streamlit 1.63 upgrade](APPLICATION_UPGRADE.md).
+
 Status: local deployment implemented and automated validation complete; awaiting
 user spot testing before publishing to `eowensai/HFS-ai`. This change starts from
 `3c0c4ff` on `codex/tika-4-local-upgrade`; recent UI/reliability changes and existing
