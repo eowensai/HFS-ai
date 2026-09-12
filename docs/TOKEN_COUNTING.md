@@ -65,7 +65,7 @@ debug renderer in memory, then local counts with actual backend input usage.
 Near-limit cases are counted locally and use adjusted capacity boundaries; they
 do not dispatch a full-context request. Only numeric results/booleans are printed.
 
-For independent test-only oracles, install `tokenizers==0.22.1 regex==2025.7.34` in
+For independent test-only oracles, install `requirements-oracles.txt` in
 an isolated test environment. Provide an ignored JSON file containing the public
 `tokenizer.ggml.*` metadata to
 `python scripts/verify_token_counting.py --oracle-metadata PATH`. The deterministic
@@ -85,3 +85,7 @@ model, checking both end markers and retained-file follow-up.
 Actual installed-backend comparisons, rather than a family-name assumption, are
 the acceptance evidence for this pinned profile. Any model/tokenizer/renderer
 upgrade requires revalidation.
+
+Python 3.14 acceptance also compares Unicode 15/16 assignments (new letters,
+combining marks and digits) with the pinned backend. These cases match exactly;
+the existing unassigned-codepoint byte bound remains in force.

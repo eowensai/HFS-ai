@@ -1,10 +1,12 @@
-# Current system — September 8, 2026
+# Current system — September 11, 2026
 
-This is a dated installation baseline, not a claim that every listed version remains
-the latest indefinitely. Read-only inspection confirmed the deployed source and
-container configuration. GitHub's previous `main` was `904e56f6cd9d2fb404ebbaeb878dcee74dac51f5`;
-the user-supplied ZIP matched all 38 files in that commit. This update imports the
-current EphemerAI implementation and supplies source-only installation documentation.
+This record combines the September 11 Tika 4 deployment and the subsequent Python
+3.14 / Streamlit 1.63 application upgrade. The application started from the deployed
+`tika4-20260911` source, preserving fixes beyond GitHub main. Platform inventory was
+last comprehensively verified September 8; service identities and protections were
+rechecked for the application release. See [application changes and acceptance](APPLICATION_UPGRADE.md)
+and [the earlier Tika record](TIKA4_UPGRADE.md). Automated acceptance does not claim
+a human spot test or a fresh Windows installation.
 
 ## Workstation and runtime
 
@@ -19,17 +21,23 @@ current EphemerAI implementation and supplies source-only installation documenta
 | containerd / runc | 2.3.4 / 1.5.1 |
 | NVIDIA Container Toolkit / libnvidia-container | 1.19.0 / 1.19.0 |
 | Docker default runtime / image store | nvidia / containerd snapshotter |
-| Live EphemerAI checkout | `/home/eko/ephemeral-llm` |
+| Deployment / tested source snapshot | `/home/eko/ephemeral-llm/docker-compose.yml` / `releases/python314-streamlit163-20260911` |
 | Compose project / network | `ephemeral-llm` / `ephemeral-llm_llm-net` |
 | Model volume | `ephemeral-llm_ollama-models` mounted at `/root/.ollama` |
 | Windows pilot address | `172.16.64.243` |
 | Startup script / task | `C:\Scripts\Start-EphemerAl.ps1` / `Monitor WSL Kiosk Service` |
 
-The original checkout still has an older EphemerAl Git remote. Publication uses
-`eowensai/HFS-ai` through a separate prepared tree; it does not rewrite the live
-remote or deploy new services.
+The old source tree and its existing changes remain. Canonical local Compose now
+builds EphemerAI from the tested release snapshot and selects the app release tag and pins the parser digest.
+The former separate `hfs-ai-live` app Compose is superseded. Publication is prepared
+in a separate HFS-ai branch; the old checkout's remote was not rewritten.
 
 ## Component identities
+
+The application uses Python **3.14.7**, Streamlit **1.63.0**, Requests **2.34.2**
+and pytz **2026.3.post1**. Pillow 12.3.0 and OpenAI SDK 1.97.2 are retained.
+Production dependencies are fully pinned; [package inventory](../deployment/app-packages.json)
+includes the resulting image's Python/build-tool and Debian package versions.
 
 The complete machine-readable record is
 [`deployment/runtime-lock.json`](../deployment/runtime-lock.json). It records
@@ -43,21 +51,24 @@ It has a 23,088,409,504-byte GGUF and a 931,146,432-byte projector, plus small
 configuration/template/parameter blobs. The manifest's `from` fields record
 construction history; they are not substitutes for the immutable identity check.
 
-Tika is a local 3.3.2 maintenance image on Ubuntu 26.04, preserving full-image OCR,
-fonts and native helpers. Its OOXML compatibility configuration keeps the non-SAX
-DOCX/PPTX extraction behavior previously accepted by both clients. It is not the
-older 3.3.0 image named in the stale GitHub documentation.
+Tika is **4.0.0 full**, based on the pinned official distribution with signed Ubuntu
+26.04 package updates. Validated runtime: Ubuntu 26.04.1, Java 25.0.4, Tesseract 5.5.0.
+OCR languages and native helpers remain available. Office uses the supported
+SAX/event parsers. EphemerAI requests JSON/Markdown, flags partial results and adds
+bounded Word comment attribution. Limits are documented in the
+[Tika build guide](../deployment/tika/README.md).
 
 ## Shared clients outside this repository
 
 - HFS Knowledge: `/home/eko/hfs-knowledge-lab/hfs-knowledge-lab-starter-v2-2`, runtime
   `/home/eko/hfs-knowledge-runtime`, user unit `hfs-knowledge.service`, UI 8503.
-  It intentionally persists its own documents, jobs and answers.
+  It intentionally persists its own documents, jobs and answers. **Stopped and
+  disabled September 11** pending Tika 4 compatibility work POC-B056; data retained.
 - V3 prototype: source under the separate HFS project, runtime
   `/home/eko/hfs-knowledge-v3-runtime`, loopback UI 8513. The discovered process
   belongs to transient `hfs-v3-maintenance-restore.service`; this is not a newly
   established persistent startup policy.
-- HFS v2.2 discovers/caches private backend addresses on startup. Current addresses
+- HFS v2.2 discovers/caches private backend addresses on startup. September 8 addresses
   were Ollama 172.18.0.2 and Tika 172.18.0.3; they are observations, not stable API
   configuration to copy into new clients.
 
@@ -84,7 +95,8 @@ promise browser/OS forensic erasure, or erase any prior disk contents.
 This Git repository contains source, configuration, scripts, tests, documentation
 and the fresh homepage screenshot. Ollama, Tika's jar/base image, app dependencies,
 and the correct Unsloth quant/projector are downloaded or built during installation.
-No saved Docker-image/model archive is needed or distributed. The model's immutable
+No saved Docker-image/model archive is needed or distributed. Retained local
+rollback images are deliberately excluded from source publication. The model's immutable
 identity check remains enabled; the install recipe recreates the required alias.
 HFS's separate installation and persistent data are outside this repository.
 
@@ -95,7 +107,9 @@ platform-update checkpoint; this is not inferred solely from the app directory.
 
 | Task / record reviewed | Current setup consequence |
 |---|---|
-| **Replace and deploy shared Tika**, September 7 | Maintained Ubuntu 26.04 / released Java 21.0.12 / signed Tika 3.3.2; retained OCR/native tools and OOXML compatibility flags |
+| **Combined application upgrade**, September 11 | Python 3.14.7, Streamlit 1.63.0, Requests/timezone updates; app-only rollout, shared backends retained |
+| **Upgrade local EphemerAI to Tika 4**, September 11 | Tika 4.0.0/Java 25.0.4; Markdown client, bounded workers and comment attribution; HFS parked with data preserved |
+| **Replace and deploy shared Tika**, September 7 (historical) | Maintained Ubuntu 26.04 / released Java 21.0.12 / signed Tika 3.3.2; retained OCR/native tools and OOXML compatibility flags |
 | **Harden EphemerAI browser access**, including the user's network-policy correction | CORS/XSRF enabled; Windows UI Any/Any access is intentional because routers control admission; logon scripts refresh forwards without creating firewall rules |
 | Platform update within **Harden EphemerAI browser access**, completed checkpoint September 8 | WSL 2.7.13.0, kernel 6.18.33.2, Docker 29.8.0, containerd 2.3.4, runc 1.5.1; all intended services restored, no reboot/continuation pending |
 | **Fix EphemerAI image decoder**, including its UI follow-up | Pillow 12.3.0 and wider responsive chat; retain Streamlit 1.56.0 |

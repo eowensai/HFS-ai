@@ -16,7 +16,7 @@ from urllib.request import urlopen
 
 try:
     from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import expect, sync_playwright
 except ModuleNotFoundError as exc:
     print(
         "Playwright is not installed. Install development dependencies with "
@@ -126,7 +126,15 @@ def _capture_ui_screenshots() -> None:
                     "Expected chat input UI element not found. Could not locate Streamlit chat input container."
                 )
 
-            desktop_page.screenshot(path=str(DESKTOP_SCREENSHOT), full_page=True)
+            sidebar = desktop_page.get_by_test_id("stSidebar")
+            assert abs(sidebar.bounding_box()["width"] - 304) < 2
+            sidebar.hover()  # Native desktop collapse control appears on hover.
+            desktop_page.get_by_test_id("stSidebarCollapseButton").click()
+            opener = desktop_page.get_by_test_id("stExpandSidebarButton")
+            expect(opener).to_be_in_viewport()
+            opener.click()
+            expect(desktop_page.get_by_role("button", name="New Chat", exact=True)).to_be_in_viewport()
+            desktop_page.screenshot(path=str(DESKTOP_SCREENSHOT), full_page=True, animations="disabled")
             desktop.close()
 
             mobile = browser.new_context(
@@ -137,7 +145,19 @@ def _capture_ui_screenshots() -> None:
             )
             mobile_page = mobile.new_page()
             mobile_page.goto(BASE_URL, wait_until="networkidle", timeout=45_000)
-            mobile_page.screenshot(path=str(MOBILE_SCREENSHOT), full_page=True)
+            opener = mobile_page.get_by_test_id("stExpandSidebarButton")
+            expect(opener).to_be_in_viewport()
+            opener.click()
+            expect(mobile_page.get_by_role("button", name="New Chat", exact=True)).to_be_in_viewport()
+            mobile_page.get_by_test_id("stSidebarCollapseButton").click()
+            expect(opener).to_be_in_viewport()
+            expect(mobile_page.get_by_test_id("stSidebar")).not_to_be_in_viewport()
+            # Native composer autofocus may scroll the welcome page initially.
+            # Verify natural scrolling can reach the top before its empty capture.
+            mobile_page.get_by_test_id("stAppScrollToBottomContainer").evaluate("e => e.scrollTo(0, 0)")
+            expect(mobile_page.get_by_role("heading", name="Welcome to EphemerAI")).to_be_in_viewport()
+            assert not mobile_page.evaluate("document.documentElement.scrollWidth > innerWidth")
+            mobile_page.screenshot(path=str(MOBILE_SCREENSHOT), full_page=True, animations="disabled")
             mobile.close()
             browser.close()
     except PlaywrightError as exc:

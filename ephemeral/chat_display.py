@@ -5,7 +5,7 @@ These helpers change rendering only, never retained/model/export content.
 """
 import base64
 import binascii
-from html import escape
+from html import escape, unescape
 
 from ephemeral.config import MAX_IMAGE_OUTPUT_BYTES
 
@@ -21,7 +21,11 @@ def render_chat_text(text, ui):
     """
     # Streamlit's help directive can pass decoded text to a second Markdown
     # renderer in a tooltip. Keep it literal too, including entity-encoded images.
-    if '![' in text or ':help[' in text:
+    # Streamlit 1.63 also interprets Mermaid fences as diagrams. Conservatively
+    # keep Mermaid-bearing text literal (even partial/quoted/entity-encoded
+    # fences), so streamed answers never execute that second renderer. Detection
+    # decodes entities only for classification; display/copy/history stay exact.
+    if '![' in text or ':help[' in text or 'mermaid' in unescape(text).casefold():
         ui.text(text)
     else:
         ui.markdown(text, unsafe_allow_html=False)
@@ -33,7 +37,8 @@ def label_html(text):
     A filename containing blank lines can end a Markdown HTML block. HTML
     escaping alone does not neutralize a subsequent Markdown image opener.
     """
-    return escape(text).replace('!', '&#33;').replace(':', '&#58;')
+    return (escape(text).replace('!', '&#33;').replace(':', '&#58;')
+            .replace('`', '&#96;').replace('~', '&#126;'))
 
 
 def image_preview_bytes(part):

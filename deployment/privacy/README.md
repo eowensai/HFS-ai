@@ -2,7 +2,7 @@
 
 ## Enforced application lifecycle
 
-`session_lifecycle.py` uses Streamlit 1.56's documented
+`session_lifecycle.py` uses Streamlit 1.63's documented
 `st.cache_resource(scope="session", on_release=...)`. Each session owns its
 mutable message list, upload buffers, and token cache. The release hook uses its
 captured objects and a lock, never thread-local `st.session_state`. New Chat clears
@@ -24,7 +24,7 @@ The resource hook releases app-owned payloads without waiting for that TTL or
 another parse/user interaction.
 
 In-flight requests can still hold local copies until cancellation/unwinding or a
-network timeout. Tika's client timeout is 15 seconds; the model's timeout is 1800
+network timeout. Tika's client timeout is 180 seconds (worker task deadline 150 seconds); the model's timeout is 1800
 seconds with zero SDK retries. These are network timeouts, not a hard wall-clock
 limit on every active request. Framework upload/media/message queues, Python
 allocator remnants, native parser buffers, and shared model CPU/GPU/KV buffers
@@ -128,3 +128,8 @@ volume rollback is part of this procedure.
 
 For source-only fresh-host setup, use the
 [installation guide](../../System%20Deployment%20Guide.md). HFS code/data stay separate.
+
+The application uses `PYTHON_DISABLE_REMOTE_DEBUG=1` on Python 3.14. A failing
+resource close does not prevent release of the remaining session payloads.
+Uploads may spool through Starlette into the bounded `/tmp` tmpfs; they are not
+permitted to spill to a persistent mount. See the [application upgrade](../../docs/APPLICATION_UPGRADE.md).

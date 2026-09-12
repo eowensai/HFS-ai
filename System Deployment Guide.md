@@ -1,6 +1,6 @@
 # EphemerAI — System Deployment Guide
 
-This guide rebuilds the September 8, 2026 deployment on a Windows 11 workstation.
+This guide rebuilds the September 11, 2026 deployment on a Windows 11 workstation.
 It also explains safe updates when HFS Knowledge already shares its backend.
 Commands marked **PowerShell (Admin)** run on Windows. Commands marked **Ubuntu**
 run inside WSL. Do not run fresh-host installation steps on a working shared host.
@@ -154,18 +154,27 @@ git clone https://github.com/eowensai/HFS-ai.git ~/ephemeral-llm
 cd ~/ephemeral-llm
 ```
 
-Before this update is merged, run `git switch recovery/current-system-2026-09-08`,
-or select that branch in the GitHub ZIP menu. Keep the entire extracted repository,
+Use the tested release branch or the accepted default branch after publication. Keep the entire extracted repository,
 including hidden files such as `.streamlit/config.toml`. Compose fixes the project
 name at `ephemeral-llm`, so its volume/network names do not depend on the ZIP folder.
 
-For a **fresh installation**, first build the no-dump policy, download the signed
-Tika jar and build the maintained parser image:
+The application Dockerfile pins Python **3.14.7** by image digest and installs
+Streamlit **1.63.0** and the complete tested dependency set from `requirements.lock`.
+The container supplies Python; upgrading Ubuntu's system Python is unnecessary.
+Development/tests use Python 3.14.7 as well. See the
+[application upgrade record](docs/APPLICATION_UPGRADE.md) for acceptance and rollback.
+
+Before building for a different site address, update both `server.allowedHosts`
+and `server.corsAllowedOrigins` in `.streamlit/config.toml`. The former contains
+hostnames/IPs without schemes or ports; the latter contains full UI origins.
+Keep localhost entries and CORS/XSRF protections enabled. The recorded deployment
+supports localhost, 127.0.0.1 and 172.16.64.243; it does not allow arbitrary Host names.
+
+For a **fresh installation**, first build the no-dump policy and the configured Tika 4 full image:
 
 ```bash
 sh deployment/privacy/build-nodump.sh
-bash deployment/tika/fetch-artifact.sh
-docker build -t shared-tika:3.3.2-local deployment/tika
+docker build -t ephemerai-tika:4.0.0-local deployment/tika
 docker pull ollama/ollama:0.32.15
 ```
 
@@ -173,22 +182,21 @@ The generated library is small and intentionally not committed. It must exist
 before service creation. It sets process dumpability and core limits to zero;
 core-file size limits alone do not stop WSL's piped crash handler.
 
-The Tika recipe preserves the official full image's OCR/fonts/native tools, updates
-Ubuntu 26.04 packages, requires released Java 21.0.12, and verifies Apache Tika 3.3.2
-by checksum and signature. Package repositories can advance: if the Java assertion
-fails, review the new supported release before updating the version assertion.
-See [Tika build details](deployment/tika/README.md). Do not use the old Ubuntu 25.04
-Tika image merely because it has an easier Docker Hub tag.
+The Tika recipe starts from the digest-pinned official 4.0.0 full distribution,
+keeps its OCR/fonts/native tools, and updates signed Ubuntu 26.04 packages.
+The validated September 11 build uses OpenJDK 25.0.4 and Tesseract 5.5.0.
+The distribution includes the launcher, libraries and plugins; a standalone Tika
+4 jar is insufficient. Configuration is JSON. See [Tika build details](deployment/tika/README.md).
 
 Inspect the newly built image without starting a parser or publishing ports:
 
 ```bash
 docker run --rm --runtime=runc --network none --memory 512m --memory-swap 512m \
-  --ulimit core=0 --entrypoint sh shared-tika:3.3.2-local -c \
+  --ulimit core=0 --entrypoint sh ephemerai-tika:4.0.0-local -c \
   'cat /etc/os-release; java -version; tesseract --list-langs'
 ```
 
-Require Ubuntu 26.04, released Java 21.0.12, and OCR data `eng`, `deu`, `fra`, `ita`,
+Require Ubuntu 26.04, supported Java 17 or later (validated: 25.0.4), and OCR data `eng`, `deu`, `fra`, `ita`,
 `jpn`, `spa`, `osd`. A local rebuild has its own image digest. Record that digest in
 an ignored `.env` rather than pretending it is byte-identical to the old host's
 image. The following **fresh-install-only** command refuses an existing `.env`:
@@ -198,11 +206,11 @@ python3 - <<'PY_PIN'
 import subprocess
 from pathlib import Path
 image_id = subprocess.check_output(
-    ['docker', 'image', 'inspect', 'shared-tika:3.3.2-local', '--format', '{{.Id}}'],
+    ['docker', 'image', 'inspect', 'ephemerai-tika:4.0.0-local', '--format', '{{.Id}}'],
     text=True).strip()
 assert image_id.startswith('sha256:') and len(image_id) == 71
 with Path('.env').open('x') as f:
-    f.write('TIKA_IMAGE=shared-tika:3.3.2-local@' + image_id + '\n')
+    f.write('TIKA_IMAGE=ephemerai-tika:4.0.0-local@' + image_id + '\n')
 print('Pinned the local Tika image in .env')
 PY_PIN
 docker compose config -q
@@ -210,8 +218,9 @@ docker compose build ephemeral-app
 ```
 
 On an existing host, preserve `.env`; only update its `TIKA_IMAGE` after an accepted
-parser build and a shared maintenance window. Without that variable, Compose
-retains the original deployed digest. It never silently pulls an arbitrary Tika tag.
+parser build and a shared maintenance window. Compose requires that variable and never silently pulls an arbitrary Tika tag.
+A Tika 3-to-4 upgrade must deploy the compatible app and parser together; preserve
+the previous pair for rollback. See the [upgrade record](docs/TIKA4_UPGRADE.md).
 
 ## 5. Download the model, create its alias, and start the app
 
@@ -391,7 +400,7 @@ removal, broad Docker pruning, or WSL unregistration as a troubleshooting shortc
 - A missing model or wrong digest: check the exact quant, recipe and upstream content hashes; don't
   change the allowlisted digest or use a different alias as a workaround.
 - Tika image unavailable: it is a local maintenance image, not a pullable Docker
-  Hub tag. Build it from the included signed-artifact recipe and pin its local digest. See [Tika maintenance](deployment/tika/README.md).
+  Hub tag. Build it from the included digest-pinned full-image recipe and pin its local digest. See [Tika maintenance](deployment/tika/README.md).
 - Missing preload library: build it before creating containers and verify the
   mounted file. Never ignore loader errors or claim RLIMIT_CORE alone is sufficient.
 - Memory failure: inspect cgroup `memory.events`, peaks and model/GPU placement.

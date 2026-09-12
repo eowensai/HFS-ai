@@ -1,10 +1,10 @@
-streamlit==1.56.0
-streamlit-browser-engine==0.0.3
-requests==2.32.5
-pytz==2025.2
-tika==3.1.0
-# Latest available `tika` release on PyPI as of 2026-04-24.
+streamlit==1.63.0
+requests==2.34.2
+pytz==2026.3.post1
 openai==1.97.2
+# Direct imports implement bounded HTTP/SSE and parser-error handling.
+httpx==0.28.1
+urllib3==2.7.0
 # Streamlit image decoder: includes the corrected PSD tile-extents fix
 # (CVE-2026-25990 / CVE-2026-42311) and subsequent 12.3.0 security fixes.
 pillow==12.3.0

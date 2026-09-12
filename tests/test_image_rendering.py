@@ -66,7 +66,7 @@ def test_uploaded_image_reaches_real_decoder(monkeypatch, format_name, filename,
     assert not at.error
     assert calls  # Submission completed using the synthetic backend.
     assert format_name in opened_formats
-    assert at.get("imgs")
+    assert at.get("image")
     messages = list(at.session_state["messages"])
     assert any(
         part.get("image_url", {}).get("url", "").startswith("data:image/jpeg;base64,")
@@ -77,7 +77,7 @@ def test_uploaded_image_reaches_real_decoder(monkeypatch, format_name, filename,
     at.run()  # Stored chat history must render through the same path.
     assert not at.exception
     assert not at.error
-    assert at.get("imgs")
+    assert at.get("image")
 
 
 def test_invalid_image_reports_error_without_crashing(monkeypatch):

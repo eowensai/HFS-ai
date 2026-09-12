@@ -1,17 +1,17 @@
 {
-  "recorded_date": "2026-09-08",
+  "recorded_date": "2026-09-11",
   "compose_project": "ephemeral-llm",
   "model_alias": "hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072",
   "model_manifest_sha256": "44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d",
   "model_manifest_path": "models/manifests/registry.ollama.ai/library/hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072/latest",
   "images": {
     "ephemeral-app": {
-      "ref": "ephemeral-llm-ephemeral-app:latest",
-      "id": "sha256:c7e0d7fd744261447296e17b0a43dfd735a9f8b71ded44949d99ab3829e986f4"
+      "ref": "ephemerai:python314-streamlit163-20260911",
+      "id": "sha256:a6d022949aaee2f670779110e99b6f4697396e393c8e336c53386fc6f8f36f83"
     },
     "tika-server": {
-      "ref": "shared-tika:3.3.2-20260907",
-      "id": "sha256:784a7f31e10139492bc22ccdbfbabc727a888ea3d851a1293723369333f8e09c"
+      "ref": "ephemerai-tika:4.0.0-20260911",
+      "id": "sha256:409d64f021b90cb4c16938d72769ca44bfa7e56df548e83730d8edf9ffca7b75"
     },
     "ollama": {
       "ref": "ollama/ollama:0.32.15",
@@ -33,9 +33,53 @@
     "runc": "1.5.1",
     "nvidia_driver": "610.88",
     "gpus": "2 x RTX 5060 Ti 16 GiB",
-    "streamlit": "1.56.0",
+    "streamlit": "1.63.0",
     "pillow": "12.3.0",
-    "tika": "3.3.2",
-    "ollama": "0.32.15"
+    "tika": "4.0.0",
+    "ollama": "0.32.15",
+    "tika_java": "25.0.4",
+    "tika_ubuntu": "26.04.1 LTS",
+    "tesseract": "5.5.0",
+    "python": "3.14.7",
+    "requests": "2.34.2",
+    "pytz": "2026.3.post1",
+    "openai": "1.97.2",
+    "httpx": "0.28.1",
+    "urllib3": "2.7.0"
+  },
+  "application_base_revision": "3c0c4ff",
+  "application_source_status": "Deployed and automatically validated on port 8501; consolidated source prepared for review",
+  "tika": {
+    "upstream": "apache/tika:4.0.0-1-full@sha256:80072bb73dd320a9de9709beb0b16d14dd6d2680376f8d31e498f55b633ba593",
+    "endpoint": "/tika/json/markdown",
+    "config": "/etc/tika/tika-config.json",
+    "workers": 2,
+    "worker_heap_mib": 1536,
+    "parent_heap_mib": 512,
+    "server_write_limit_characters": 262144,
+    "app_text_limit_utf8_bytes": 262144,
+    "app_parse_deadline_seconds": 180,
+    "worker_task_deadline_seconds": 150,
+    "worker_progress_deadline_seconds": 60
+  },
+  "shared_client_status": {
+    "hfs_knowledge": "stopped; systemd user service disabled; compatibility backlog POC-B056"
+  },
+  "python_base_image": "python:3.14.7-slim-trixie@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6",
+  "application_rollback": {
+    "ref": "ephemerai:pre-python314-streamlit163",
+    "id": "sha256:98a5ed85eca15665b0be99d6c4f082bfb08ace063b243c7c36e8854e02809a54",
+    "release": "tika4-20260911",
+    "services": [
+      "ephemeral-app"
+    ]
+  },
+  "application_code_revision": "947d53a62aac02d107335b955a4385ce70197fb6",
+  "application_release_directory": "/home/eko/ephemeral-llm/releases/python314-streamlit163-20260911",
+  "application_compose_checkpoint": "/home/eko/ephemeral-llm/docker-compose.pre-python314-streamlit163-20260911.yml",
+  "service_started_at": {
+    "ephemeral-app": "2026-09-11T23:26:52.406739898Z",
+    "ollama": "2026-09-09T03:31:37.343320368Z",
+    "tika-server": "2026-09-11T21:19:42.013019863Z"
   }
 }

@@ -78,13 +78,26 @@ body,
 }
 
 #MainMenu,
-header,
 footer,
 .stDeployButton,
-/* Streamlit internal test IDs: hide top toolbar/status in app shell. */
-[data-testid="stToolbar"],
+/* Streamlit 1.63: hide toolbar actions/status, preserving its sidebar opener. */
+[data-testid="stMainMenu"],
+[data-testid="stToolbarActions"],
+[data-testid="stAppDeployButton"],
 [data-testid="stStatusWidget"] {
     display: none !important;
+}
+
+/* Streamlit 1.63 puts the collapsed-sidebar opener inside stHeader. Preserve
+   that native control on mobile/desktop; a hidden header makes it unreachable.
+   The transparent header must not intercept clicks on the conversation. */
+[data-testid="stHeader"] {
+    background: transparent;
+    pointer-events: none;
+}
+
+[data-testid="stExpandSidebarButton"] {
+    pointer-events: auto;
 }
 
 .stApp {
@@ -745,7 +758,7 @@ button[title="View fullscreen"] {
     z-index: 300;
 }
 
-/* Streamlit 1.56 internals: unified chat input root surface. */
+/* Streamlit 1.63 internals: unified chat input root surface. */
 [data-testid="stChatInput"] > div {
     border: 1px solid var(--color-border) !important;
     border-radius: 18px !important;
@@ -761,14 +774,8 @@ button[title="View fullscreen"] {
     box-shadow: 0 0 0 1px var(--color-accent) !important;
 }
 
-/* Streamlit 1.56 internals: textarea wrappers must be transparent.
-   BaseWeb Textarea renders three nested layers:
-     StyledTextAreaRoot   [data-baseweb="textarea"]     – outer div
-     StyledTextareaContainer [data-baseweb="base-input"] – inner div (BaseInput Root replacement)
-     <textarea>           [data-testid="stChatInputTextArea"]
-   All three carry their own background from BaseWeb/Streamlit theming. */
-[data-testid="stChatInput"] [data-baseweb="textarea"],
-[data-testid="stChatInput"] [data-baseweb="base-input"],
+/* Streamlit 1.63 uses native transparent wrappers, without BaseWeb attributes.
+   Scope the override to the textarea; its parent owns the white input surface. */
 [data-testid="stChatInputTextArea"] {
     background: transparent !important;
     background-color: transparent !important;
@@ -776,17 +783,11 @@ button[title="View fullscreen"] {
     box-shadow: none !important;
 }
 
-[data-testid="stChatInput"] [data-baseweb="textarea"] {
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-}
-
 [data-testid="stChatInput"] textarea {
     padding: 0.35rem 0.2rem !important;
 }
 
-/* Streamlit 1.56 internals: upload button (data-testid is on wrapper div). */
+/* Streamlit 1.63 internals: upload button (data-testid is on wrapper div). */
 [data-testid="stChatInputFileUploadButton"] button {
     width: 2.15rem !important;
     height: 2.15rem !important;
@@ -797,7 +798,7 @@ button[title="View fullscreen"] {
     flex: 0 0 auto;
 }
 
-/* Streamlit 1.56 internals: submit button (data-testid is on the button itself). */
+/* Streamlit 1.63 internals: submit button (data-testid is on the button itself). */
 button[data-testid="stChatInputSubmitButton"] {
     min-width: 2.25rem !important;
     height: 2.25rem !important;
@@ -820,8 +821,8 @@ button[data-testid="stChatInputSubmitButton"]:disabled {
     box-shadow: none;
 }
 
-/* Streamlit internal class fragment in 1.56: key-based wrapper for the
-   Thinking Mode row that now lives in st._bottom. Keep this in normal flow so
+/* Streamlit 1.63: key-based wrapper for the
+   Thinking Mode row in public st.bottom. Keep this in normal flow so
    Streamlit's native bottom dock owns height/scroll anchoring during reruns. */
 [class*="st-key-composer_toggle_row"] {
     position: relative;

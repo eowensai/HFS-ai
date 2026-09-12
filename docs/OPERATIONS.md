@@ -4,6 +4,14 @@ EphemerAI owns its UI/session lifecycle. Ollama and Tika may serve other clients
 HFS Knowledge's data is intentionally persistent and is not cleared by EphemerAI.
 The Docker project name, model volume and internal network are stable in Compose.
 
+## Tika 4 compatibility hold
+
+As of September 11, HFS Knowledge is stopped and its user service is disabled.
+Leave it parked until its own backlog item POC-B056 restores compatibility and
+sets suitable ingestion limits. The 256 KiB EphemerAI cap is unsuitable for
+unrestricted HFS ingestion. Do not apply the normal restore-client step below
+to HFS during this hold. See [the upgrade record](TIKA4_UPGRADE.md).
+
 ## App-only changes
 
 Finish active EphemerAI requests, preserve source changes and a rollback image,

@@ -38,9 +38,14 @@ class ConversationPayloads:
         with self._lock:
             self.released = True
             self.budget_snapshot = None
-            for payload in self._owned:
-                self._clear(payload)
-            self._owned.clear()
+            owned, self._owned = self._owned, []
+            for payload in owned:
+                try:
+                    self._clear(payload)
+                except Exception:
+                    # One failing close must not retain every other payload or
+                    # prevent late-result rejection. Never log exception content.
+                    continue
 
 
 class ConversationMessages(list):

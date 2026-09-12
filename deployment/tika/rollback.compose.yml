@@ -1,4 +1,11 @@
+# Apply only with the main Compose file; recreate this pair without building.
 services:
-  tika-server:
-    image: shared-tika:rollback-20260907@sha256:ecdd37e204308266b1f8e28569f8516ebd5b96d7a4518a71d3904710b20c03b3
+  ephemeral-app:
+    image: ${EPHEMERAL_ROLLBACK_IMAGE:?Set the retained pre-upgrade application digest}
     pull_policy: never
+  tika-server:
+    image: ${TIKA_ROLLBACK_IMAGE:?Set the matching retained pre-upgrade Tika digest}
+    pull_policy: never
+    environment:
+      # Restore the previous 3.3.2 JVM profile; container/tmpfs/no-dump limits stay.
+      - JAVA_TOOL_OPTIONS=-Xmx2g -Xms512m -Djava.io.tmpdir=/tmp -Duser.home=/tmp -XX:-CreateCoredumpOnCrash -XX:-HeapDumpOnOutOfMemoryError -XX:ErrorFile=/tmp/hs_err_pid%p.log

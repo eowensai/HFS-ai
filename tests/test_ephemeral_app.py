@@ -64,6 +64,10 @@ def _install_synthetic_backend(monkeypatch, calls):
     monkeypatch.setattr(llm_client, "get_image_token_cost", lambda: 2048)
     monkeypatch.setattr(llm_client, "model_supports_images", lambda: False)
     monkeypatch.setattr(llm_client, "count_text_tokens", lambda text: max(1, len(text) // 4))
+    # UI tests own all backend calls, including the tokenizer added to admission.
+    # Actual BPE and renderer behavior is covered by test_model_tokenizer.py.
+    monkeypatch.setattr(llm_client, "get_model_tokenizer", lambda: SimpleNamespace(
+        count=lambda text: max(1, len(text.encode('utf-8')))))
     monkeypatch.setattr(tika_client, "tika_alive", lambda: True)
     monkeypatch.setattr(clipboard, "render_copy_button", lambda *args, **kwargs: None)
     monkeypatch.setattr(clipboard, "render_turn_copy_button", lambda *args, **kwargs: None)

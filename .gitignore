@@ -57,3 +57,6 @@ downloads/
 *.tar
 *.tar.gz
 *.zip
+
+# Machine-specific Compose overrides and deployment records
+.local/
