@@ -1,3 +1,5 @@
+> September15 update: the selected departmental frontend/engine and current commands are in [CURRENT_DEPLOYMENT.md](CURRENT_DEPLOYMENT.md) and the [operator guide](../System%20Deployment%20Guide.md). Historical shared-stack commands below require the explicit `docker-compose.ollama-shared.yml`; bare Compose no longer selects Ollama. Earlier evidence retains its original cutoff.
+
 > **Scope:** commands here operate the original shared Ollama stack. For the isolated FP4/DFlash profiles use [FP4 deployment](FP4_DEPLOYMENT.md). Do not start Ollama alongside FP4.
 
 # Operations with shared services

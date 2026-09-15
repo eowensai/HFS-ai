@@ -169,6 +169,12 @@ def api_messages(messages, vision=True):
                         parts.append({'type': 'text', 'text': part['text']})
             content = ('\n\n'.join(p['text'] for p in parts)
                        if all(p['type'] == 'text' for p in parts) else parts)
+        if message['role'] == 'user' and message.get('_application_time') is not None:
+            # This metadata is set once at submission, never parsed from uploads
+            # or regenerated while rebuilding history. Keep image order intact.
+            header = 'Application turn time: ' + message['_application_time']
+            content = ([{'type': 'text', 'text': header + '\n\n'}, *content]
+                       if isinstance(content, list) else header + '\n\n' + content)
         output.append({'role': message['role'], 'content': content})
     return output
 

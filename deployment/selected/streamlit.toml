@@ -1,0 +1,27 @@
+[server]
+# Do not reconnect to an old conversation. Payload release uses the session hook.
+disconnectedSessionTTL = 0
+# Keep the reviewed heartbeat interval under the Starlette/Uvicorn server.
+websocketPingInterval = 30
+headless = true
+enableCORS = true
+enableXsrfProtection = true
+# Transport includes multipart framing; Python enforces the exact 50 MiB file cap.
+maxUploadSize = 51
+port = 8501
+address = "0.0.0.0"
+allowedHosts = ["localhost", "127.0.0.1", "172.16.64.243"]
+corsAllowedOrigins = ["http://localhost:8501", "http://127.0.0.1:8501", "http://172.16.64.243:8501"]
+
+[browser]
+# Documented Windows pilot address; this is not a client-network authorization.
+serverAddress = "172.16.64.243"
+serverPort = 8501
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#4F5BEA"
+backgroundColor = "#F6F8FC"
+secondaryBackgroundColor = "#F5F7FB"
+textColor = "#1D2A44"

@@ -15,9 +15,13 @@ def run(*args):
 
 
 def main():
+    if '--ollama-recovery' not in sys.argv:
+        from verify_selected import live_checks, source_checks
+        print(json.dumps(live_checks(source_checks()), indent=2))
+        return
     compose = json.loads(subprocess.check_output(
         ['docker', 'compose', '--project-directory', str(ROOT), '-f',
-         str(ROOT / 'docker-compose.yml'), 'config', '--format', 'json'], text=True))
+         str(ROOT / 'docker-compose.ollama-shared.yml'), 'config', '--format', 'json'], text=True))
     tika_ref = compose['services']['tika-server']['image']
     assert '@sha256:' in tika_ref, 'Tika must be pinned to the validated local build digest'
     tika_id = tika_ref.rsplit('@', 1)[1]

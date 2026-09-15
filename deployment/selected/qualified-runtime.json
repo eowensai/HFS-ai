@@ -1,0 +1,25 @@
+{
+  "release": "stable-prefix-20260915",
+  "repository": "eowensai/HFS-ai",
+  "frontend_image": "sha256:32bd1e140e88eed3b2fb5b0f77eefce5515194114091c8d580f076e6f4547aa6",
+  "frontend_tag": "ephemerai-stable-prefix-qualification:20260915",
+  "engine_image": "sha256:8b6b56ae42e195d662d7d09c99ed4fcd405b4a4d6684b26f13423f7b39901452",
+  "runtime_files": {
+    "ephemeral/attachments.py": "2ad66627f4fb6f5af2136a9a519a30713d0be2953264232455c7bd7a378d88e8",
+    "ephemeral/privacy.py": "dc501e3f84ad96a71f6b53577730f3836ce63f78108b2cc91f0d6030597b94bb",
+    "ephemeral/request_lifecycle.py": "1d1f0fc3262308038ab641398776a5975a07bed6e52b534b8a4e210d19fe0562",
+    "ephemeral_app.py": "eff659729dc52f10c5750a6481bffa00c9636b7d05ad922dd9fb17ec459a2847",
+    "system_prompt_template.md": "3ba80e1bf2b2209bc7b93a32b48c68a0ad0ee0c0269ce08af8f4aa6a56b9ed05"
+  },
+  "baseline_frontend_image": "sha256:7209450b54fc5144399cf8dbb7aa9999d94ae94505afdee282a8b773b22dc184",
+  "native_object_sha256": "aeb3e7488e960cab7f48f5a609a5e466e970eadc7bce1b88e2aacffe172cb684",
+  "chat_template_sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+  "output_reserve": 32768,
+  "context": 131072,
+  "qualification": "Frozen 16-case bounded qualification, >60-minute mixed-use, lifecycle/recovery and abrupt engine loss complete; historical and minor grounding failures retained",
+  "mounted_files": {
+    "streamlit.toml": "0a84455072266c5cb8b030cad51c643044186925bff4022ddeb3ba18cbd10817",
+    "deployment.json": "193ff51cd69850a38394213f5d48dfb00380cfdf75eae3c10862d53206a14348"
+  },
+  "tika_image": "sha256:409d64f021b90cb4c16938d72769ca44bfa7e56df548e83730d8edf9ffca7b75"
+}

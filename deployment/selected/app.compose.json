@@ -1,0 +1,110 @@
+{
+  "name": "hfsai-selected",
+  "services": {
+    "ephemeral-app": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
+      "container_name": "hfsai-app-stable-prefix",
+      "entrypoint": null,
+      "environment": {
+        "LD_PRELOAD": "/opt/ephemerai/libephemerai_nodump.so",
+        "LLM_BACKEND": "vllm",
+        "LLM_BASE_URL": "http://ephemerai-vllm-bounded:8000/v1",
+        "LLM_CONTEXT_TOKENS": "131072",
+        "LLM_DEPLOYMENT_MANIFEST": "/opt/ephemerai/deployment.json",
+        "LLM_MAX_RETRIES": "0",
+        "LLM_MAX_TOKENS": "32768",
+        "LLM_MODEL_NAME": "ephemerai-qwen3.8-27b-nvfp4-131072",
+        "LLM_OUTPUT_RESERVE_TOKENS": "32768",
+        "LLM_PRESENCE_PENALTY": "0.0",
+        "LLM_REASONING_EFFORT": "medium",
+        "LLM_REQUEST_TIMEOUT_S": "1800",
+        "LLM_SHOW_REASONING": "false",
+        "LLM_TEMPERATURE": "1.0",
+        "LLM_THINKING_EFFORT": "xhigh",
+        "LLM_TOP_P": "0.95",
+        "STREAMLIT_SERVER_ADDRESS": "0.0.0.0",
+        "STREAMLIT_SERVER_HEADLESS": "true",
+        "TIKA_URL": "http://tika-server:9998"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8501/_stcore/health\", timeout=5)"
+        ],
+        "timeout": "10s",
+        "interval": "30s",
+        "retries": 3,
+        "start_period": "30s"
+      },
+      "image": "sha256:32bd1e140e88eed3b2fb5b0f77eefce5515194114091c8d580f076e6f4547aa6",
+      "init": true,
+      "labels": {
+        "ephemerai.deployment": "stable-prefix-20260915",
+        "hfsai.selected": "true"
+      },
+      "logging": {
+        "driver": "local",
+        "options": {
+          "max-file": "3",
+          "max-size": "2m"
+        }
+      },
+      "mem_limit": "2147483648",
+      "memswap_limit": "2147483648",
+      "networks": {
+        "llm-net": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "0.0.0.0",
+          "target": 8501,
+          "published": "8501",
+          "protocol": "tcp"
+        }
+      ],
+      "pull_policy": "never",
+      "read_only": true,
+      "restart": "unless-stopped",
+      "runtime": "runc",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777",
+        "/var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777"
+      ],
+      "ulimits": {
+        "core": 0
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "./deployment.json",
+          "target": "/opt/ephemerai/deployment.json",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./streamlit.toml",
+          "target": "/app/.streamlit/config.toml",
+          "read_only": true,
+          "bind": {}
+        }
+      ]
+    }
+  },
+  "networks": {
+    "llm-net": {
+      "name": "ephemeral-llm_llm-net",
+      "ipam": {},
+      "external": true
+    }
+  }
+}

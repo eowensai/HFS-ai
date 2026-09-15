@@ -191,8 +191,8 @@ def test_system_prompt_has_no_reasoning_directives():
         assert forbidden not in prompt_text
 
 
-def test_compose_pins_shared_qwen38_profile():
-    compose_text = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+def test_compose_pins_shared_qwen38_recovery_profile():
+    compose_text = (REPO_ROOT / "docker-compose.ollama-shared.yml").read_text(encoding="utf-8")
     required_lines = [
         "image: ollama/ollama:0.32.15",
         "LLM_MODEL_NAME=hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072",

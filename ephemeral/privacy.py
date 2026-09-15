@@ -1,5 +1,6 @@
 """Conversation ownership, independent of Streamlit callback thread context."""
 from collections import OrderedDict
+from secrets import token_hex
 from threading import RLock
 from uuid import uuid4
 
@@ -13,6 +14,8 @@ class ConversationPayloads:
         self.released = False
         self.id = uuid4().hex
         self.budget_snapshot = None
+        self.cache_salt = token_hex(32)
+        self.system_prompt = None
 
     def own(self, payload):
         with self._lock:
@@ -38,6 +41,8 @@ class ConversationPayloads:
         with self._lock:
             self.released = True
             self.budget_snapshot = None
+            self.cache_salt = None
+            self.system_prompt = None
             owned, self._owned = self._owned, []
             for payload in owned:
                 try:

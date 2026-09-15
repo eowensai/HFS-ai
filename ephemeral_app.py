@@ -441,8 +441,8 @@ def main():
             return
         previous = gate.active
         current = TurnWork(payloads, st.session_state.messages, text, files, thinking,
-                           SYSTEM_TMPL.safe_substitute(current_time_local=timestamp_local()),
-                           DEFAULT_UPLOAD_PROMPT)
+                           SYSTEM_TMPL.safe_substitute(), DEFAULT_UPLOAD_PROMPT,
+                           turn_time=timestamp_local())
         current.user_message = retry_message
         current.require_display_ack = True
         if not gate.start(current, execute):
