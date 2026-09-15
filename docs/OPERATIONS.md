@@ -1,3 +1,5 @@
+> **Scope:** commands here operate the original shared Ollama stack. For the isolated FP4/DFlash profiles use [FP4 deployment](FP4_DEPLOYMENT.md). Do not start Ollama alongside FP4.
+
 # Operations with shared services
 
 EphemerAI owns its UI/session lifecycle. Ollama and Tika may serve other clients.

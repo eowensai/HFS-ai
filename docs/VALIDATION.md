@@ -1,3 +1,5 @@
+> **Historical validation:** these results predate the FP4 port. See [the port record](HFS_AI_FP4_PORT.md) for current branch checks and their limits.
+
 # Validation — September 8, 2026
 
 > Current application validation: [Python 3.14 / Streamlit 1.63](APPLICATION_UPGRADE.md).

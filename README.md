@@ -2,8 +2,16 @@
 
 EphemerAI is a local document-and-image chat application running on a Windows 11
 workstation through WSL2 and Docker. Prompts and files are processed by local
-Ollama and Apache Tika services. This repository is the **EphemerAI source and
-installation guide for the system verified on September 11, 2026**.
+Ollama or the optional pinned vLLM FP4 backend, plus Apache Tika. This is
+**eowensai/HFS-ai**, the private departmental source repository. EphemerAl is the
+separate public version.
+
+The new [FP4/DFlash profile](docs/FP4_DEPLOYMENT.md) reproduces the selected fast
+build while retaining the original Ollama stack. Start with the
+[port and validation record](docs/HFS_AI_FP4_PORT.md) and
+[current deployment / quality limitations](docs/CURRENT_DEPLOYMENT.md). The
+remaining stack and setup sections below describe the preserved September 11
+Ollama baseline; they are not the FP4 launch recipe.
 
 ![EphemerAI homepage](Ephemeral%20Screenshot.jpg)
 
@@ -27,7 +35,7 @@ share the same Ollama/Tika services; see [shared-service operations](docs/OPERAT
 The word `hfs` in the model alias is part of the required shared model identity,
 not a dependency on the HFS Knowledge application.
 
-## Current stack
+## Preserved Ollama stack
 
 | Component | Accepted baseline |
 |---|---|

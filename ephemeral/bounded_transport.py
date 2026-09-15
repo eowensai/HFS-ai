@@ -61,10 +61,16 @@ class BoundedStream(httpx.SyncByteStream):
 
 
 class BoundedTransport(httpx.HTTPTransport):
+    def __init__(self, *args, abort_guard=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.abort_guard = abort_guard
+
     def handle_request(self, request):
         # Bounds apply before HTTPX decoding. Do not allow compressed expansion.
         request.headers['Accept-Encoding'] = 'identity'
         started = time.monotonic()
+        if self.abort_guard is not None:
+            request.extensions['trace'] = self.abort_guard.trace
         response = super().handle_request(request)
         if response.headers.get('Content-Encoding', 'identity').strip().lower() != 'identity':
             response.close()

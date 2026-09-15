@@ -1,0 +1,6 @@
+{
+  "upstream_commit": "6fe67cbbf3e43da89bebf6ab0eeaca4ba6c75663",
+  "upstream_sha256": "3abeac36180df7bd1bd96b1a7c698a8f212d92c063026420cbdd16d1980e90e6",
+  "patched_sha256": "9ef0517e928c923c3f44c06de03d4fee8350f8229360a7bde58562a77bac0487",
+  "purpose": "Omit unused target embeddings and vision tower on PP stage 2; preserve the separate MTP embeddings."
+}

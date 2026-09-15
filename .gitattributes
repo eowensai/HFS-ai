@@ -1,0 +1,2 @@
+# Unified patch context markers are intentional bytes covered by hashes.
+deployment/fp4/**/*.patch -whitespace

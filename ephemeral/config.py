@@ -20,7 +20,13 @@ DEBUG_MODE = os.getenv("EPHEMERAL_DEBUG", "0").strip().lower() in {"1", "true", 
 # Feature toggle (operator-only)
 ENABLE_TOKEN_BUDGETING = os.getenv("ENABLE_TOKEN_BUDGETING", "1").strip().lower() not in {"0", "false", "no"}
 
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://ollama:11434/v1")
+LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama").strip().lower()
+if LLM_BACKEND not in {"ollama", "vllm"}:
+    raise RuntimeError("Unsupported local model backend")
+PINNED_VLLM_MODEL_NAME = "ephemerai-qwen3.8-27b-nvfp4-131072"
+PINNED_VLLM_MODEL_REVISION = "319f741cce68d7914884900c138a1fbb70a42f30"
+LLM_DEPLOYMENT_MANIFEST = os.getenv("LLM_DEPLOYMENT_MANIFEST", "/opt/ephemerai/deployment.json")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://vllm:8000/v1" if LLM_BACKEND == "vllm" else "http://ollama:11434/v1")
 TIKA_URL = os.getenv("TIKA_URL", "http://tika-server:9998")
 LLM_SUPPORTS_VISION = os.getenv("LLM_SUPPORTS_VISION")
 
@@ -98,7 +104,7 @@ def _pinned_text_env(name: str, expected: str) -> str:
 
 
 TIKA_TIMEOUT_S = _int_env("TIKA_TIMEOUT_S", 180)
-LLM_MODEL_NAME = _pinned_text_env("LLM_MODEL_NAME", PINNED_LLM_MODEL_NAME)
+LLM_MODEL_NAME = _pinned_text_env("LLM_MODEL_NAME", PINNED_VLLM_MODEL_NAME if LLM_BACKEND == "vllm" else PINNED_LLM_MODEL_NAME)
 LLM_CONTEXT_TOKENS = _int_env("LLM_CONTEXT_TOKENS", 131072)
 LLM_OUTPUT_RESERVE_TOKENS = _int_env("LLM_OUTPUT_RESERVE_TOKENS", 32768)
 LLM_REQUEST_TIMEOUT_S = _float_env("LLM_REQUEST_TIMEOUT_S", 1800.0)

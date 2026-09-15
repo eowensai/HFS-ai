@@ -1,0 +1,61 @@
+{
+  "flashinfer_commit": "af78f8fc17a9654563a619974de56e79257aaea6",
+  "archive_url": "https://codeload.github.com/flashinfer-ai/flashinfer/tar.gz/af78f8fc17a9654563a619974de56e79257aaea6",
+  "archive_sha256": "f793eee8d33a8749c0532e76208aa4ce8061308923ab034fa97656e94f68e8ab",
+  "files": {
+    "upstream_tma.py": "93d739b5b5d50c873bb6e403230f5f82c108e974c51b69607d2d8679eeeb84d3",
+    "upstream_compile.py": "dd513b4abd06ae0358dbe54fa38d044f7f99472d20960708d549919ec24b787b",
+    "native_tma_nhd.py": "b5b06091633410491da5e4e6b101eaddc85332da5e5835e2eb9fe0f3f1a5eb97",
+    "compile_nhd.py": "1d3eb2822b521b6a658102c7b2a1b136a343113545d9652c7ae57ab2a8842544",
+    "native-nhd.o": "aeb3e7488e960cab7f48f5a609a5e466e970eadc7bce1b88e2aacffe172cb684",
+    "libcute_dsl_runtime-4.7.1.so": "bc4b6a5ea5f0a44ecc9658b5f98db04a197db50a83b0f2c26dbf768b60fb3ad6"
+  },
+  "runtime_wheel": {
+    "package": "nvidia-cutlass-dsl-libs-cu13",
+    "version": "4.7.1",
+    "filename": "nvidia_cutlass_dsl_libs_cu13-4.7.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+    "url": "https://files.pythonhosted.org/packages/10/71/e178bb0858fd7b96857e98e3acec70b23f13b88540a2fcc53569f8e8ea34/nvidia_cutlass_dsl_libs_cu13-4.7.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+    "sha256": "20c14e16125cb8e36bc9947a9f0a57a660f44651365337b911c84abde4967f5f",
+    "bytes": 88260436
+  },
+  "compiler_wheel": {
+    "package": "nvidia-cutlass-dsl",
+    "version": "4.7.1",
+    "filename": "nvidia_cutlass_dsl-4.7.1-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/af/ef/903dab832a19e0f1d798c9acc96edbda5dfb29f2e030b46e163946555817/nvidia_cutlass_dsl-4.7.1-py3-none-any.whl",
+    "sha256": "765850c74868a0b5a02fefbfc1b380842b64e5f7a1c8b1655e322a3b14c01726",
+    "bytes": 10460
+  },
+  "numerics": "BF16 queries rounded to E4M3; probabilities scaled256 then E4M3; FP32 accumulators; E4M3 main KV unchanged. Approximation, not distribution preserving.",
+  "qualified_geometry": "SM120; Q24/KV4/D256; interleaved NHD page64; causal single-request prefill only",
+  "vllm_backend": {
+    "path": "vllm/v1/attention/backends/flashinfer.py",
+    "upstream_sha256": "fc43e5c3637e32eca468efb19aee3a20ed5068610928af721f2891898df9e26d",
+    "patched_sha256": "8a0152ebf98636e038f98e0b082b503e2c69bfbc028873c441b1bd921665ce59"
+  },
+  "adapter_sha256": "8edd49d4b06479c03b948ed038d3baf9502c5db1fe5825bed7ac6dd0284b05d3",
+  "compiler_base_wheel": {
+    "package": "nvidia-cutlass-dsl-libs-base",
+    "version": "4.7.1",
+    "filename": "nvidia_cutlass_dsl_libs_base-4.7.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+    "url": "https://files.pythonhosted.org/packages/55/b5/af332a4dbb0dba45828994d9789d1969dfecca006a6221cd8b92e4825d3f/nvidia_cutlass_dsl_libs_base-4.7.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+    "sha256": "c2b67dacabfc905e4d132784fe4848647f40b0b97b1cdde3ce4a482642536b84",
+    "bytes": 2832971
+  },
+  "compiler_source_wheel": {
+    "package": "nvidia-cutlass-dsl-libs-cu12",
+    "version": "4.7.1",
+    "filename": "nvidia_cutlass_dsl_libs_cu12-4.7.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+    "url": "https://files.pythonhosted.org/packages/94/39/d847abeeb9a4ced8e11b30b401564c74c692ac9609f5bd921ed9d0a32f43/nvidia_cutlass_dsl_libs_cu12-4.7.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+    "sha256": "c8a0f93a1cde41404696b3194dd1f589c6f3a7b426bcabe97845f8fe96f949f5",
+    "bytes": 88679788
+  },
+  "compiler_core_wheel": {
+    "package": "nvidia-cutlass-dsl-libs-core",
+    "version": "4.7.1",
+    "filename": "nvidia_cutlass_dsl_libs_core-4.7.1-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/6b/14/b669cc890f7fd74008d7bc52f493d0a7ff256de10f3941c6676249419c07/nvidia_cutlass_dsl_libs_core-4.7.1-py3-none-any.whl",
+    "sha256": "c65662abc9ab18fd997c57547895736928e559f4624bbe2aa1aa91418ea014ca",
+    "bytes": 1235214
+  }
+}

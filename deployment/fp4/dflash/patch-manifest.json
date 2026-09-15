@@ -1,0 +1,56 @@
+{
+  "vllm_commit": "6fe67cbbf3e43da89bebf6ab0eeaca4ba6c75663",
+  "status": "Owner-authorized local deployment; bounded runtime passed, strict grounding gate failed; see docs/CURRENT_DEPLOYMENT.md",
+  "patches": [
+    {
+      "path": "vllm/model_executor/models/qwen3_5.py",
+      "patch": "qwen3_5.py.patch",
+      "upstream_sha256": "9ef0517e928c923c3f44c06de03d4fee8350f8229360a7bde58562a77bac0487",
+      "patched_sha256": "63576bc3c3b153a9d50eafa28b6494a4025118a8fde4bed186dfb98a1db30185",
+      "patch_sha256": "7d4857a53a96c2eaa767375c70219c99afd1b8668b1f138db1c6dabc44f307e5"
+    },
+    {
+      "path": "vllm/model_executor/models/qwen3_next.py",
+      "patch": "qwen3_next.py.patch",
+      "upstream_sha256": "4fa5112ac2bf7886d41d9e1f6c3da8793620d1ec49c961b31e9609459a6a7f7a",
+      "patched_sha256": "0a5f1d0fb266d14abd17435398db1a7f468a536f05bb6cb7b48356cb7ac0bf42",
+      "patch_sha256": "5817933528bb0aecd2f1dbabbc12bafd929e61610070ca73e54d12bf68a1b581"
+    },
+    {
+      "path": "vllm/model_executor/models/qwen3_dflash.py",
+      "patch": "qwen3_dflash.py.patch",
+      "upstream_sha256": "2ed8cd217aad112e19309713e0c8b491bf3250698f50509d9b1d1fb1cd7295e9",
+      "patched_sha256": "c23b904966e5022cf7e234f2a48eba706fd863d5510e48958e6460a673093fac",
+      "patch_sha256": "3497165f1381347807837ac5c34d0e3fb8ac817bae1c3f24aa86b2690c2ba30e"
+    },
+    {
+      "path": "vllm/model_executor/models/qwen3_dflash2.py",
+      "patch": "qwen3_dflash2.py.patch",
+      "upstream_sha256": "c141daa4b2059c0098224ac36471c2197b7052c100bef0a4dbc2ca79b627053f",
+      "patched_sha256": "c47f2e056306f7ffeed603eab713aa7e634b4658702ceaafc4ae86f2bf38b8e7",
+      "patch_sha256": "c9b8b8f0d0060392c4e7fcff2a5855d638c2563724405122bc07d46dfbb24e49"
+    },
+    {
+      "path": "vllm/model_executor/kernels/linear/mixed_precision/marlin.py",
+      "patch": "marlin.py.patch",
+      "upstream_sha256": "fef6ff0c4a945809bdc09c2bf684c0dceb7080d40f309fbc0535a94b992dc700",
+      "patched_sha256": "d97c1320b19fbbe313432b77bbfc3115c901b7ef5fda42cce1206625a96234dd",
+      "patch_sha256": "2aa7199b360872a28435f220fa1b8a5ff1da0adb3e3fa77fb48e0e76bd37358b"
+    },
+    {
+      "path": "vllm/v1/core/kv_cache_utils.py",
+      "patch": "kv_cache_utils.py.patch",
+      "upstream_sha256": "3326435f857c903711939d4f6b2776395262729b464b3973949c1234a163ff3f",
+      "patched_sha256": "3bf4c16b026f19bf9c0176d5907b87c06f6b9c18bfb17a9ab591e87c7ba8e0ec",
+      "patch_sha256": "04facf19a5e43663f5f933faa42633636a299d101b2444c1c4af2c06fcbce71b"
+    },
+    {
+      "path": "vllm/v1/worker/gpu/model_runner.py",
+      "patch": "model_runner.py.patch",
+      "upstream_sha256": "cb4ea0d1115440632071fe91e0f4d3eac4e24823cc617551cd26aa8100c24cc0",
+      "patched_sha256": "eb4f4756c58fb8fef20741744be0837aa10c9ef57529ee967176d128a69d2cab",
+      "patch_sha256": "cfb02a058b3fd43d3a813c7586e80da33f41a4cd3b1c57ff99c70d3f38c25673"
+    }
+  ],
+  "embedding_sha256": "260c561046b27c001367b0d55789b45cb175006ac69fe7df923e6b887acc1769"
+}

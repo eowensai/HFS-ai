@@ -1,0 +1,9 @@
+{
+  "model": "hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072",
+  "manifest_sha256": "44d415f1e36e9aea1cca2baaaa79da8cef57f255c8dd91f1e9ef0abfc8a6c33d",
+  "context": 131072,
+  "kv_cache": "q8_0",
+  "ollama": "0.32.15",
+  "num_gpu": 66,
+  "draft_num_predict": 2
+}

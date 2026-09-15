@@ -1,3 +1,26 @@
+# HFS-ai FP4 review branch (September 14, 2026)
+
+This repository is **eowensai/HFS-ai**, the owner's private departmental application.
+EphemerAl is its separate public version. Create application PRs here unless the
+owner explicitly requests the public repository. Do not confuse either with the
+separate HFS Knowledge experiment.
+
+The owner authorized porting the deployed FP4/DFlash build onto current HFS-ai main,
+retaining Ollama support and this repository's departmental configuration. This
+supersedes the Q6-only backend statements below for the explicit FP4 profile.
+Read `docs/HFS_AI_FP4_PORT.md`, `docs/CURRENT_DEPLOYMENT.md`, and
+`docs/FP4_DEPLOYMENT.md`. The original `docker-compose.yml` and recovery records
+remain the shared Ollama path. The new profiles are opt-in and separate.
+
+Preserve the departmental Streamlit host/origin settings and static assets.
+Keep the running installation, model stores, Tika and HFS Knowledge unchanged
+while preparing/reviewing source. Do not import EphemerAl's public roadmap.
+Do not merge main or publish a release without owner authorization. Validation
+is isolated; bounded historical GPU tests are not new tests of this port, and
+the strict factual-grounding gate did not pass.
+
+---
+
 # AGENTS.md
 
 ## Project Overview

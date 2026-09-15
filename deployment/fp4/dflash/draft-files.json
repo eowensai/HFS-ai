@@ -1,0 +1,18 @@
+{
+  "model.safetensors": {
+    "bytes": 1280633960,
+    "sha256": "ec26996e6a0745ab5edb857117220ce1e219ad524f71e6e149b703804947d8e7"
+  },
+  ".gitattributes": {
+    "bytes": 1519,
+    "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361"
+  },
+  "config.json": {
+    "bytes": 2264,
+    "sha256": "61d6276fe8d76295232cb02d26cbb0d29c25565911f50441e779c88c9220c556"
+  },
+  "README.md": {
+    "bytes": 2621,
+    "sha256": "6df902aad4204e5225c4f2f501c33318c0015c4177fab761c7ddd4c05a39b311"
+  }
+}

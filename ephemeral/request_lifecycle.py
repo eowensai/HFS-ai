@@ -81,6 +81,7 @@ class TurnWork:
         self.notice = ''
         self.done = False
         self.cancelled = threading.Event()
+        self._model_guard = None
         self.user_message = None
         self.retryable = False
         self.require_display_ack = False
@@ -95,6 +96,8 @@ class TurnWork:
     def clear(self):
         self.cancelled.set()
         self.displayed.set()
+        if self._model_guard is not None:
+            self._model_guard.abort()
         with self.lock:
             for upload in self.files:
                 upload.close()
@@ -173,6 +176,8 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
              measure=budget_request):
     """Small injectable boundaries support failure tests without changing shared services."""
     stream = None
+    sdk_client = None
+    model_guard = None
     capacity = None
     context_checked = False
     measurement_started = measurement_ready = False
@@ -256,7 +261,16 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
             work.waiting_for_display = False
             work.deadline = time.monotonic() + cfg.LLM_REQUEST_TIMEOUT_S
             work.progress('Waiting for the AI…')
-        stream = client().chat.completions.create(**request)
+        sdk_client = client()
+        model_guard = getattr(sdk_client, '_ephemerai_abort_guard', None)
+        if model_guard is not None:
+            with work.lock:
+                work._model_guard = model_guard
+                model_guard.arm(work.deadline)
+                if work.stopped():
+                    model_guard.abort()
+                work.check_running()
+        stream = sdk_client.chat.completions.create(**request)
         filter_ = ThinkStreamFilter()
         complete = False
         for chunk in stream:
@@ -325,27 +339,36 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
     except Exception as exc:  # noqa: BLE001 - sanitize all backend errors at the UI boundary
         with work.lock:
             if not work.owner.released and not work.cancelled.is_set():
-                if isinstance(exc, TimeoutError) or 'timeout' in type(exc).__name__.lower():
+                if (isinstance(exc, TimeoutError) or 'timeout' in type(exc).__name__.lower()
+                        or (model_guard is not None and model_guard.expired)):
                     work.error = 'Work timed out. Any partial reply is incomplete and is excluded from model history.'
                 else:
                     work.error = ('The model request failed or the response ended before completion. '
                                   'Any partial reply is incomplete and is excluded from model history.')
                 # Exceptions can contain content: never display/log their strings.
     finally:
+        if model_guard is not None:
+            model_guard.finish()
         if stream is not None and hasattr(stream, 'close'):
             try:
                 stream.close()
             except Exception:  # noqa: BLE001 - cleanup must preserve the original status
                 with work.lock:
                     work.retryable = False
+        if sdk_client is not None and hasattr(sdk_client, 'close'):
+            try:
+                sdk_client.close()
+            except Exception:  # noqa: BLE001 - never expose transport exception content
+                pass
         with work.lock:
+            work._model_guard = None
             if (work.error and receipts and not work.owner.released and not work.cancelled.is_set()
                     and not any(m.get('id') == work.id for m in work.messages)):
                 stub = {'id': work.id, 'role': 'user', 'content': exclude_content(receipts,
                         'Unavailable: the request failed validation or reading; content was not sent.')}
                 if conversation_room(work.messages, retained_bytes(stub)):
                     work.messages.append(stub)
-            live = not work.owner.released and not work.cancelled.is_set()
+            live = not work.stopped()
         # No polling/probe for the caption: once at this content transition, using
         # this request's verified capacity. Failed verification stays unavailable.
         if live and not context_checked:
@@ -355,7 +378,7 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
                 capacity = None
         retained = None
         with work.lock:
-            if not work.owner.released and not work.cancelled.is_set():
+            if not work.stopped():
                 work.owner.budget_snapshot = None
                 if capacity is not None and (not measurement_started or measurement_ready):
                     try:

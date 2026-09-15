@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1
+ARG MTP_IMAGE=ephemerai-review:fp4
+FROM ${MTP_IMAGE}
+COPY deployment/fp4/dflash /opt/ephemerai/dflash
+COPY deployment/fp4/supervise.py deployment/fp4/watchdog.py deployment/fp4/diagnostics.py /opt/ephemerai/
+RUN python3 /opt/ephemerai/dflash/apply.py
+COPY deployment/fp4/dflash/launch.json /opt/ephemerai/launch.json
+COPY deployment/fp4/dflash/draft-files.json /opt/ephemerai/draft-files.json
+ENV PYTHONPATH=/opt/ephemerai/native:/opt/ephemerai/dflash EPHEMERAI_DFLASH_SHARED_MODULES=1 EPHEMERAI_DFLASH_KV_GROUP_SIZE=16 EPHEMERAI_DFLASH_EMBEDDING_INT4=1

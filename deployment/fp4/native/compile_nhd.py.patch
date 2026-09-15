@@ -1,0 +1,160 @@
+--- upstream_compile.py
++++ compile_nhd.py
+@@ -59,7 +59,7 @@
+ 
+     _validate_balanced_scheduler(is_causal, balanced_scheduler)
+ 
+-    from .fmha_prefill_fp8_tma import SM120FusedMultiHeadAttentionFP8ForwardTMA
++    from native_tma_nhd import SM120FusedMultiHeadAttentionFP8ForwardTMA
+ 
+     in_ct = _CUTLASS_DTYPE[in_dtype]
+     out_ct = _CUTLASS_DTYPE[out_dtype]
+@@ -153,7 +153,7 @@
+     """Compile one sequence-length-independent packed-Q paged kernel."""
+     _validate_balanced_scheduler(is_causal, balanced_scheduler)
+ 
+-    from .fmha_prefill_fp8_tma import SM120FusedMultiHeadAttentionFP8ForwardTMA
++    from native_tma_nhd import SM120FusedMultiHeadAttentionFP8ForwardTMA
+ 
+     in_ct = _CUTLASS_DTYPE[in_dtype]
+     out_ct = _CUTLASS_DTYPE[out_dtype]
+@@ -208,8 +208,8 @@
+         (sym_num_pages, num_kv_heads, num_tokens_per_page, head_dim),
+         stride=(
+             cute.sym_int(),
+-            num_tokens_per_page * head_dim,
+-            head_dim,
++            head_dim * 2,
++            num_kv_heads * head_dim * 2,
+             1,
+         ),
+         assumed_align=16,
+@@ -219,8 +219,8 @@
+         (sym_num_pages, num_kv_heads, num_tokens_per_page, head_dim),
+         stride=(
+             cute.sym_int(),
+-            num_tokens_per_page * head_dim,
+-            head_dim,
++            head_dim * 2,
++            num_kv_heads * head_dim * 2,
+             1,
+         ),
+         assumed_align=16,
+@@ -259,110 +259,11 @@
+     )
+ 
+ 
+-def _cache_key_files():
+-    root = Path(__file__).resolve().parent
+-    return (
+-        str(Path(__file__).resolve()),
+-        str(root / "fmha_prefill_fp8_tma.py"),
+-    )
+-
+-
+-def _dtype_name(dtype: torch.dtype) -> str:
+-    return str(dtype).removeprefix("torch.").replace(".", "_")
+-
+-
+-@functools.cache
+-def compile_sm120_fmha_fp8_ragged_kernel(
+-    in_dtype: torch.dtype,
+-    out_dtype: torch.dtype,
+-    num_qo_heads: int,
+-    num_kv_heads: int,
+-    head_dim: int,
+-    is_causal: bool,
+-    kv_tile: int,
+-    q_tile: int,
+-    device: torch.device,
+-    with_lse: bool = False,
+-    balanced_scheduler: bool = False,
+-):
+-    _validate_balanced_scheduler(is_causal, balanced_scheduler)
+-
++
++if __name__ == '__main__':
+     from flashinfer.jit.cute_dsl_core import build_and_load_cute_dsl_kernel
+-
+-    device = torch.device(device)
+-    if torch.cuda.get_device_capability(device) != (12, 0):
+-        raise RuntimeError("SM120 PRIMS FMHA compilation requires SM120")
+-    kernel_name = (
+-        f"ragged_{_dtype_name(in_dtype)}_{_dtype_name(out_dtype)}"
+-        f"_hq{num_qo_heads}_hkv{num_kv_heads}_d{head_dim}"
+-        f"_causal{int(is_causal)}_kt{kv_tile}_qt{q_tile}"
+-        f"_lse{int(with_lse)}_balanced{int(balanced_scheduler)}"
+-    )
+-    return build_and_load_cute_dsl_kernel(
+-        "sm120_prims_fmha_fp8",
+-        kernel_name,
+-        lambda: _compile_sm120_fmha_fp8_ragged_kernel(
+-            in_dtype,
+-            out_dtype,
+-            num_qo_heads,
+-            num_kv_heads,
+-            head_dim,
+-            is_causal,
+-            kv_tile,
+-            q_tile,
+-            device,
+-            with_lse,
+-            balanced_scheduler,
+-        ),
+-        extra_key_files=_cache_key_files(),
+-    )
+-
+-
+-@functools.cache
+-def compile_sm120_fmha_fp8_paged_kernel(
+-    in_dtype: torch.dtype,
+-    out_dtype: torch.dtype,
+-    num_qo_heads: int,
+-    num_kv_heads: int,
+-    head_dim: int,
+-    is_causal: bool,
+-    kv_tile: int,
+-    q_tile: int,
+-    num_tokens_per_page: int,
+-    device: torch.device,
+-    with_lse: bool = False,
+-    balanced_scheduler: bool = False,
+-):
+-    _validate_balanced_scheduler(is_causal, balanced_scheduler)
+-
+-    from flashinfer.jit.cute_dsl_core import build_and_load_cute_dsl_kernel
+-
+-    device = torch.device(device)
+-    if torch.cuda.get_device_capability(device) != (12, 0):
+-        raise RuntimeError("SM120 PRIMS FMHA compilation requires SM120")
+-    kernel_name = (
+-        f"paged_hnd_{_dtype_name(in_dtype)}_{_dtype_name(out_dtype)}"
+-        f"_hq{num_qo_heads}_hkv{num_kv_heads}_d{head_dim}"
+-        f"_causal{int(is_causal)}_kt{kv_tile}_qt{q_tile}"
+-        f"_page{num_tokens_per_page}_lse{int(with_lse)}"
+-        f"_balanced{int(balanced_scheduler)}"
+-    )
+-    return build_and_load_cute_dsl_kernel(
+-        "sm120_prims_fmha_fp8",
+-        kernel_name,
+-        lambda: _compile_sm120_fmha_fp8_paged_kernel(
+-            in_dtype,
+-            out_dtype,
+-            num_qo_heads,
+-            num_kv_heads,
+-            head_dim,
+-            is_causal,
+-            kv_tile,
+-            q_tile,
+-            num_tokens_per_page,
+-            device,
+-            with_lse,
+-            balanced_scheduler,
+-        ),
+-        extra_key_files=_cache_key_files(),
+-    )
++    fn=build_and_load_cute_dsl_kernel('ephemerai_scaled', 'nhd_h24_k4_d256_page64_q128_k128', lambda: _compile_sm120_fmha_fp8_paged_kernel(torch.float8_e4m3fn,torch.bfloat16,24,4,256,True,128,128,64,torch.device('cuda'),False,True), extra_key_files=[Path(__file__),Path("/integration/native_tma_nhd.py")])
++    import shutil,json
++    obj=next(Path('/root/.cache/flashinfer').rglob('nhd_h24_k4_d256_page64_q128_k128.o'))
++    shutil.copyfile(obj,'/integration/native-nhd.o')
++    print(json.dumps({'object':str(obj),'function':'ephemerai_scaled_nhd_h24_k4_d256_page64_q128_k128','capability':torch.cuda.get_device_capability()}),flush=True)

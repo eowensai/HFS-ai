@@ -1,0 +1,50 @@
+--- upstream/model_executor/models/qwen3_5.py
++++ candidate/model_executor/models/qwen3_5.py
+@@ -89,6 +89,7 @@
+     Qwen3VLProcessingInfo,
+ )
+ from .utils import (
++    spec_decode_needs_target_embed,
+     AutoWeightsLoader,
+     PPMissingLayer,
+     WeightsMapper,
+@@ -245,7 +246,7 @@
+         # The PP target consumes embedded inputs only on the first stage.
+         # Qwen3_5MTP independently loads its own embedding on the final stage;
+         # retain that draft copy instead of a second unused target copy.
+-        if get_pp_group().is_first_rank or config.tie_word_embeddings:
++        if get_pp_group().is_first_rank or config.tie_word_embeddings or spec_decode_needs_target_embed(vllm_config):
+             self.embed_tokens = VocabParallelEmbedding(
+                 self.vocab_size,
+                 config.hidden_size,
+@@ -370,7 +371,7 @@
+         return self.model.embed_input_ids(input_ids)
+ 
+     def set_aux_hidden_state_layers(self, layers: tuple[int, ...]) -> None:
+-        self.model.aux_hidden_state_layers = layers
++        self.model._set_aux_hidden_state_layers(layers)
+ 
+     def get_eagle3_aux_hidden_state_layers(self) -> tuple[int, ...]:
+         num_layers = len(self.model.layers)
+@@ -496,6 +497,7 @@
+         quant_config = vllm_config.quant_config
+         multimodal_config = vllm_config.model_config.multimodal_config
+ 
++        self._ephemerai_vllm_config = vllm_config
+         self.config = config
+         self.model_config = vllm_config.model_config
+         self.multimodal_config = multimodal_config
+@@ -536,6 +538,13 @@
+         self.make_empty_intermediate_tensors = (
+             self.language_model.make_empty_intermediate_tensors
+         )
++
++    def process_weights_after_loading(self):
++        inherited = getattr(super(), 'process_weights_after_loading', None)
++        if inherited is not None:
++            inherited()
++        from draft_embedding import maybe_convert
++        maybe_convert(self, self._ephemerai_vllm_config)
+ 
+     def embed_input_ids(
+         self,

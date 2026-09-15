@@ -60,3 +60,12 @@ downloads/
 
 # Machine-specific Compose overrides and deployment records
 .local/
+
+# FP4 downloads/builds stay local; no weights or native objects in Git.
+*.safetensors
+*.gguf
+*.whl
+*.bundle
+*.tar
+ephemeral/assets/qwen-tokenizer.json
+deployment/fp4/native/*.o

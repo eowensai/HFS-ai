@@ -66,8 +66,10 @@ downloads/
 *.tar.gz
 *.zip
 
-deployment/tika/
-deployment/
+deployment/*
+!deployment/privacy/
+deployment/privacy/*
+!deployment/privacy/nodump.c
 scripts/
 requirements-oracles.txt
 
@@ -77,3 +79,6 @@ requirements-oracles.txt
 # Browser acceptance runners are test-only.
 scripts/reliability_browser.py
 scripts/reliability_failures.py
+
+!deployment/fp4/
+!deployment/fp4/**
