@@ -11,6 +11,7 @@ import requests
 import streamlit as st
 from openai import OpenAI
 
+from ephemeral import vllm_backend
 from ephemeral.bounded_transport import BoundedTransport
 from ephemeral.config import (
     IMG_TOKEN_COST_DEFAULT,
@@ -51,6 +52,10 @@ def get_model_tokenizer():
     """
     global _model_tokenizer
     with _tokenizer_lock:
+        if vllm_backend.enabled():
+            if _model_tokenizer is None:
+                _model_tokenizer = vllm_backend.raw_text_tokenizer()
+            return _model_tokenizer
         if _model_tokenizer is None:
             try:
                 started = time.monotonic()
@@ -76,6 +81,8 @@ def get_model_tokenizer():
 
 def measure_model_request(request, capacity, reserve):
     """Canonical admission, supplied with a verified, offline model tokenizer."""
+    if vllm_backend.enabled():
+        return vllm_backend.measure(request, capacity, reserve)
     try:
         return budget_request(request, capacity, reserve, tokenizer=get_model_tokenizer())
     except (ValueError, KeyError, TypeError):
@@ -90,6 +97,8 @@ def llm_alive() -> bool:
     A generic Ollama health response is insufficient: EphemerAI must fail closed
     instead of silently sending a turn to a missing or retargeted model alias.
     """
+    if vllm_backend.enabled():
+        return vllm_backend.alive()
     return model_matches_pinned_profile(_ollama_tags(), _ollama_show())
 
 
@@ -146,24 +155,30 @@ def model_matches_pinned_profile(
     return PINNED_LLM_REQUIRED_CAPABILITIES.issubset(set(capabilities))
 
 
-# ── Cached OpenAI client ──────────────────────────────────────────
-@st.cache_resource
+# ── Request-owned OpenAI client ──────────────────────────────────────────
 def get_llm_client() -> OpenAI:
-    """Return a cached OpenAI client instance configured for the backend."""
-    return OpenAI(
+    """A fresh turn-owned connection can be interrupted without harming another turn."""
+    from ephemeral.request_abort import RequestAbort
+    guard = RequestAbort()
+    timeout = httpx.Timeout(LLM_REQUEST_TIMEOUT_S, connect=5.0, pool=5.0)
+    transport = BoundedTransport(abort_guard=guard, http2=False,
+                                 limits=httpx.Limits(max_connections=1, max_keepalive_connections=0))
+    result = OpenAI(
         base_url=LLM_BASE_URL,
         api_key="not-needed",
-        timeout=LLM_REQUEST_TIMEOUT_S,
+        timeout=timeout,
         max_retries=0,  # Explicit UI retry only; never duplicate a submission automatically.
-        http_client=httpx.Client(transport=BoundedTransport(), timeout=LLM_REQUEST_TIMEOUT_S),
+        http_client=httpx.Client(transport=transport, timeout=timeout),
     )
+    result._ephemerai_abort_guard = guard
+    return result
 
 
 def build_chat_completion_request(
     messages: list[dict], thinking_mode_enabled: bool
 ) -> dict[str, Any]:
     """Build the exact shared-profile request for one EphemerAI turn."""
-    return {
+    request = {
         "model": LLM_MODEL_NAME,
         "messages": messages,
         "stream": True,
@@ -175,6 +190,13 @@ def build_chat_completion_request(
             "reasoning_effort": reasoning_effort_for_turn(thinking_mode_enabled),
         },
     }
+
+    if vllm_backend.enabled():
+        request["extra_body"].update(
+            top_k=20, min_p=0.0, repetition_penalty=1.0,
+            chat_template_kwargs={"enable_thinking": True, "reasoning_effort": reasoning_effort_for_turn(thinking_mode_enabled)},
+        )
+    return request
 
 
 # ── Ollama model metadata ─────────────────────────────────────────
@@ -214,6 +236,8 @@ def model_supports_images() -> bool:
       2) Ollama /api/show capabilities (preferred).
       3) Ollama model_info heuristics as a fallback.
     """
+    if vllm_backend.enabled():
+        return vllm_backend.alive()
     if LLM_SUPPORTS_VISION is not None:
         return LLM_SUPPORTS_VISION.strip().lower() in {"1", "true", "yes", "y", "on"}
 
@@ -262,6 +286,8 @@ def resolve_context(show, running, configured=LLM_CONTEXT_TOKENS):
 
 def get_model_ctx() -> int:
     """Fresh per-request probes; an unavailable ps probe is not a cold start."""
+    if vllm_backend.enabled():
+        return vllm_backend.runtime_context()
     try:
         with requests.post(f'{_ollama_base_url()}/api/show', json={'model': LLM_MODEL_NAME}, timeout=5) as response:
             response.raise_for_status()

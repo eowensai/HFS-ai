@@ -1,3 +1,5 @@
+> **FP4/DFlash:** this guide preserves the original HFS-ai Ollama installation and recovery path. For the new backend, use [FP4 deployment](docs/FP4_DEPLOYMENT.md). Do not use the shared-stack commands below to switch a running FP4 installation.
+
 # EphemerAI — System Deployment Guide
 
 This guide rebuilds the September 11, 2026 deployment on a Windows 11 workstation.

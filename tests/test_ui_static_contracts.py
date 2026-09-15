@@ -161,7 +161,16 @@ def test_new_chat_labels_and_placeholder_contracts():
 
 def test_docker_service_name_defaults_are_preserved():
     config_text = (REPO_ROOT / "ephemeral/config.py").read_text(encoding="utf-8")
-    assert 'LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://ollama:11434/v1")' in config_text
+    import os
+    import subprocess
+    import sys
+
+    for backend, expected in [("ollama", "http://ollama:11434/v1"), ("vllm", "http://vllm:8000/v1")]:
+        env = dict(os.environ, LLM_BACKEND=backend)
+        env.pop("LLM_BASE_URL", None)
+        env.pop("LLM_MODEL_NAME", None)
+        value = subprocess.check_output([sys.executable, "-c", "from ephemeral.config import LLM_BASE_URL; print(LLM_BASE_URL)"], env=env, text=True).strip()
+        assert value == expected
     assert 'TIKA_URL = os.getenv("TIKA_URL", "http://tika-server:9998")' in config_text
 
 

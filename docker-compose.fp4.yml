@@ -1,0 +1,166 @@
+name: ephemerai-review-fp4
+services:
+  tika-server:
+    image: ${EPHEMERAI_TIKA_IMAGE:-ephemerai-review:tika4}
+    mem_limit: 6g
+    memswap_limit: 6g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+    restart: unless-stopped
+    networks:
+    - llm-net
+    environment:
+    - LD_PRELOAD=/opt/ephemerai/libephemerai_nodump.so
+    - JAVA_TOOL_OPTIONS=-Xmx512m -Xms128m -Djava.io.tmpdir=/tmp -Duser.home=/tmp -XX:-CreateCoredumpOnCrash
+      -XX:-HeapDumpOnOutOfMemoryError -XX:ErrorFile=/tmp/hs_err_pid%p.log
+    expose:
+    - '9998'
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
+    - /var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
+    volumes:
+    - ./.local/privacy/libephemerai_nodump.so:/opt/ephemerai/libephemerai_nodump.so:ro
+    logging:
+      driver: none
+    build: ./deployment/tika
+  ephemeral-app:
+    image: ${EPHEMERAI_APP_IMAGE:-ephemerai-review:app}
+    mem_limit: 2g
+    memswap_limit: 2g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+    restart: unless-stopped
+    networks:
+    - llm-net
+    ports:
+    - ${EPHEMERAI_BIND_ADDRESS:-127.0.0.1}:${EPHEMERAI_PORT:-8501}:8501
+    environment:
+      LD_PRELOAD: /opt/ephemerai/libephemerai_nodump.so
+      LLM_BASE_URL: http://vllm:8000/v1
+      LLM_MODEL_NAME: ephemerai-qwen3.8-27b-nvfp4-131072
+      LLM_CONTEXT_TOKENS: '131072'
+      LLM_OUTPUT_RESERVE_TOKENS: '32768'
+      LLM_REQUEST_TIMEOUT_S: '1800'
+      LLM_MAX_RETRIES: '0'
+      LLM_REASONING_EFFORT: medium
+      LLM_THINKING_EFFORT: xhigh
+      LLM_SHOW_REASONING: 'false'
+      LLM_TEMPERATURE: '1.0'
+      LLM_TOP_P: '0.95'
+      LLM_PRESENCE_PENALTY: '0.0'
+      LLM_MAX_TOKENS: '32768'
+      TIKA_URL: http://tika-server:9998
+      STREAMLIT_SERVER_HEADLESS: 'true'
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+      LLM_BACKEND: vllm
+      LLM_DEPLOYMENT_MANIFEST: /opt/ephemerai/deployment.json
+    depends_on:
+      vllm:
+        condition: service_healthy
+      tika-server:
+        condition: service_started
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777
+    - /var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
+    logging:
+      driver: local
+      options:
+        max-size: 2m
+        max-file: '3'
+    runtime: runc
+    init: true
+    read_only: true
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    healthcheck:
+      test:
+      - CMD
+      - python3
+      - -c
+      - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8501/_stcore/health",
+        timeout=5)
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    build: .
+    volumes:
+    - ./.local/deployment.json:/opt/ephemerai/deployment.json:ro
+  vllm:
+    image: ${EPHEMERAI_ENGINE_IMAGE:?Run python scripts/deployment.py prepare fp4
+      first}
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    read_only: true
+    mem_limit: 26g
+    memswap_limit: 26g
+    shm_size: 4g
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    working_dir: /tmp
+    stop_grace_period: 40s
+    networks:
+    - llm-net
+    expose:
+    - '8000'
+    labels:
+      ephemerai.inference: vllm
+    environment:
+      CUDA_DEVICE_ORDER: PCI_BUS_ID
+      NCCL_P2P_DISABLE: '1'
+      VLLM_USE_V2_MODEL_RUNNER: '1'
+      VLLM_WSL2_ENABLE_PIN_MEMORY: '1'
+      VLLM_PP_LAYER_PARTITION: ${EPHEMERAI_PP_PARTITION:-34,30}
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      EPHEMERAI_NATIVE_PREFILL: ${EPHEMERAI_NATIVE_PREFILL:-1}
+      MAX_JOBS: '2'
+      TORCHINDUCTOR_COMPILE_THREADS: '2'
+      CUDA_CACHE_PATH: /root/.cache/cuda-driver
+      TRITON_CACHE_DIR: /root/.cache/triton/vllm
+      TORCHINDUCTOR_CACHE_DIR: /root/.cache/torchinductor/vllm
+      VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE: '67108864'
+      TMPDIR: /tmp
+      XDG_CONFIG_HOME: /tmp/config
+    volumes:
+    - ./.local/models:/models:ro
+    - fp4-kernel-cache:/root/.cache
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=4g,mode=1777
+    - /var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities:
+            - gpu
+    logging:
+      driver: none
+    healthcheck:
+      test:
+      - CMD
+      - python3
+      - /opt/ephemerai/healthcheck.py
+      interval: 20s
+      timeout: 15s
+      start_period: 8m
+      retries: 3
+networks:
+  llm-net:
+    driver: bridge
+volumes:
+  fp4-kernel-cache: {}

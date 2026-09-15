@@ -1,0 +1,19 @@
+--- vllm/v1/worker/gpu/model_runner.py
++++ vllm/v1/worker/gpu/model_runner.py
+@@ -571,6 +571,16 @@
+         self.cp_interleave = self.parallel_config.cp_kv_cache_interleave_size
+         kv_cache_config = deepcopy(kv_cache_config)
+         self.kv_cache_config = kv_cache_config
++        # Draft cache config is copied before the engine resolves layout. The
++        # inherited worker RPC updates only the main config; synchronize copied
++        # attention configs to the same resolved physical allocation contract.
++        resolved_layout = self.cache_config.kv_cache_layout
++        assert resolved_layout is not None
++        for layer in self.compilation_config.static_forward_context.values():
++            copied = getattr(getattr(layer, "impl", None), "cache_config", None)
++            if copied is not None:
++                assert copied.kv_cache_layout in (None, resolved_layout)
++                copied.kv_cache_layout = resolved_layout
+ 
+         block_table_max_model_len = self.max_model_len
+         if self.is_encoder_decoder:

@@ -1,0 +1,10 @@
+--- upstream/model_executor/kernels/linear/mixed_precision/marlin.py
++++ candidate/model_executor/kernels/linear/mixed_precision/marlin.py
+@@ -104,6 +104,7 @@
+         def transform_w_q(x):
+             assert isinstance(x, BasevLLMParameter)
+             permute_param_layout_(x, input_dim=0, output_dim=1, packed_dim=0)
++            torch.cuda.empty_cache()  # Release dead checkpoint/dequant temporaries during loading only.
+             x.data = ops.gptq_marlin_repack(
+                 marlin_pad_qweight(
+                     x.data.contiguous(), size_n, size_k, padded_n, padded_k
