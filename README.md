@@ -1,142 +1,69 @@
-# EphemerAI
+# HFS-ai
 
-EphemerAI is a local document-and-image chat application running on a Windows 11
-workstation through WSL2 and Docker. Prompts and files are processed by local
-Ollama or the optional pinned vLLM FP4 backend, plus Apache Tika. This is
-**eowensai/HFS-ai**, the private departmental source repository. EphemerAl is the
-separate public version.
+HFS-ai is this machine's departmental document-and-image chat deployment, maintained in **eowensai/HFS-ai**. Its qualified interface retains the EphemerAI name. The separate public EphemerAl repository and HFS Knowledge experiment are not this deployment.
 
-The new [FP4/DFlash profile](docs/FP4_DEPLOYMENT.md) reproduces the selected fast
-build while retaining the original Ollama stack. Start with the
-[port and validation record](docs/HFS_AI_FP4_PORT.md) and
-[current deployment / quality limitations](docs/CURRENT_DEPLOYMENT.md). The
-remaining stack and setup sections below describe the preserved September 11
-Ollama baseline; they are not the FP4 launch recipe.
+## Selected deployment: September 15, 2026
 
-![EphemerAI homepage](Ephemeral%20Screenshot.jpg)
+The selected stack is the **qualified stable-prefix frontend plus the unchanged corrected DFlash/native-attention engine**. Windows 11, WSL 2 **Ubuntu-24.04**, Docker and the existing two RTX 5060 Ti 16 GiB GPUs remain the platform. Tika 4 handles document extraction.
 
-Start with the [System Deployment Guide](System%20Deployment%20Guide.md).
-The [current-system record](docs/CURRENT_SYSTEM.md) distinguishes deployed facts
-from host-specific setup choices and remaining limitations.
+| Component | Selection |
+| --- | --- |
+| Frontend | Frozen stable-prefix image 32bd1e140e88; exact source hashes in the release manifest |
+| Engine | Corrected DFlash/native image 8b6b56ae42e1 |
+| Target / draft | RadixArk Qwen3.8-27B NVFP4 / syvai Qwen3.8-27B DFlash2 W4A16, pinned revisions |
+| Placement / requests | PP2/TP1, 32/32 layers, one request, batch 1,024, seven proposals |
+| Context / output | 131,072 total; 32,768 application output limit and admission reserve |
+| State | Target/draft KV FP8 E4M3; recurrent FP32; convolution BF16 |
+| Application | Python 3.14.7 / Streamlit 1.63.0; unchanged dependencies, images and extraction limits |
 
-## What is included
+Read [current deployment](docs/CURRENT_DEPLOYMENT.md) for full immutable identities, [operator guide](System%20Deployment%20Guide.md) for commands, and [qualification/current limitations](docs/FP4_QUALIFICATION.md) before making performance or quality claims.
 
-- The deployed Streamlit UI, responsive layout, document/image handling, readable
-  assistant formatting, copy controls, and fictional regression tests.
-- The fixed shared Qwen model definition and exact accepted model manifest.
-- Docker Compose, the pinned Tika 4 full-image build, core-dump policy source,
-  bounded RAM/tmpfs, and zero Linux container swap configuration.
-- Windows logon/WSL forwarding scripts and detailed fresh-host installation,
-  app-update and verification instructions.
+## Normal operation on this machine
 
-HFS Knowledge and its V3 prototype are separate applications. Their source,
-documents, databases, jobs, answers and credentials are **not included**. They may
-share the same Ollama/Tika services; see [shared-service operations](docs/OPERATIONS.md).
-The word `hfs` in the model alias is part of the required shared model identity,
-not a dependency on the HFS Knowledge application.
+From PowerShell:
 
-## Preserved Ollama stack
-
-| Component | Accepted baseline |
-|---|---|
-| Application | Python 3.14.7, Streamlit 1.63.0, Pillow 12.3.0 |
-| Model server | Ollama 0.32.15 |
-| Model | Qwen3.8-27B, Unsloth UD-Q6_K_M |
-| Required alias | `hfs-ephemeral-shared-qwen3.8-27b-ud-q6km-131072` |
-| Context / output ceiling | 131,072 / 32,768 tokens |
-| GPU profile | 66 layers, Q8 KV, Flash Attention, batch 128, embedded MTP 2 |
-| Parallelism | One loaded model and one parallel inference slot |
-| Parser | Tika 4.0.0 full image; Markdown extraction, OCR/native helpers |
-| Linux memory caps | App 2 GiB; Tika 6 GiB; Ollama 18 GiB; zero container swap |
-
-The validated host has two RTX 5060 Ti 16 GiB GPUs and approximately 30 GiB
-available to WSL. Plan for **32 GiB total NVIDIA VRAM and at least 30 GiB WSL RAM**
-for this fixed profile; the actual workstation has 64 GiB host RAM. These are
-measured pilot requirements, not a guarantee for unlimited concurrent uploads.
-EphemerAI verifies the accepted manifest digest and Q6/vision capabilities and
-fails closed if they differ. It does not silently select another model.
-
-Ordinary requests explicitly use medium reasoning. **Thinking Mode** selects
-`xhigh` for one submission and resets off; native callers use `think: "max"` for
-that one request. Reasoning deltas and embedded thought blocks are filtered from
-visible answers. The output ceiling is 32,768 tokens in either mode.
-
-See the [combined application upgrade record](docs/APPLICATION_UPGRADE.md) for
-version decisions, native file/image paste, validation and app-only rollback.
-
-## Document extraction
-
-Tika 4 supplies Markdown headings, lists and tables to the model. EphemerAI keeps
-Word comment authors in a labeled attribution section and preserves usable partial
-results with a warning. OCR and supported formats remain available; this is not a
-guarantee of better answers or perfect layout recognition. The model is unchanged.
-
-Limits remain 50 MiB per upload, eight files / 64 MiB per submission, 180 seconds
-per parse, 256 KiB extracted UTF-8 text per file and 512 KiB per submission. The
-server separately limits extracted characters to 262,144 and worker tasks to 150
-seconds. Markdown syntax consumes some text budget. HFS Knowledge is parked
-pending its own Tika 4 adapter and ingestion-limit decision. See the
-[Tika 4 change record](docs/TIKA4_UPGRADE.md).
-
-## Privacy and access
-
-EphemerAI has no chat database and does not intentionally save chat/document
-content. New Chat clears its conversation-owned messages, upload buffers and
-caches without clearing another user's session. Parsing no longer retains a
-second parsed-text cache. A supported Streamlit session-resource hook releases
-app-owned payloads on detected WebSocket disconnection; reconnect TTL is zero.
-
-All three services handling EphemerAI data enforce zero Linux container swap,
-bounded temporary filesystems, and process core-dump controls. Clean browser
-closure triggered cleanup in about 0.06 seconds in a fictional test; silent
-network loss normally takes up to about 60 seconds plus scheduling to detect.
-In-flight requests, framework buffers, native/GPU memory, browser storage,
-clipboard, exports and Windows paging/crash dumps have additional lifetimes.
-There is **no forensic-erasure guarantee**, and these controls do not erase old
-swap, dumps or disk contents. [Privacy details](deployment/privacy/README.md).
-
-CORS and XSRF protections are **enabled**. The UI has no login or TLS layer.
-The current installation relies on upstream network equipment to control access
-to the UI; that policy is not created by this repository. Docker publishes only
-8501. Ollama 11434 and Tika 9998 remain internal. Browser-origin checks do not
-replace network access control. Do not expose this deployment to the public
-internet without a separately designed authentication/TLS boundary.
-
-## Install or update
-
-- **Fresh workstation:** follow the [complete setup guide](System%20Deployment%20Guide.md).
-- **Downloads during setup:** pull Ollama, build Tika from the digest-pinned official full distribution,
-  and download `unsloth/Qwen3.8-27B-GGUF:UD-Q6_K_M` from Hugging Face. Model weights
-  and container images are not part of the repository or source ZIP.
-- **Update an existing shared installation:** finish active requests, then rebuild
-  only EphemerAI with `docker compose up -d --build --no-deps --force-recreate ephemeral-app`.
-  Do not restart shared backends or recreate the alias as an app-update test.
-- **Verify a deployment:** run `python3 scripts/verify_runtime.py`, then check the
-  GPU/model state and one fictional upload as described in the setup guide.
-- **Stop only EphemerAI:** `docker compose stop ephemeral-app`. A WSL shutdown stops
-  HFS and other prototypes too and belongs to a coordinated maintenance window.
-
-## Development
-
-Use Python 3.14.7 and an isolated environment. Production dependencies are declared
-in `requirements.txt` and fully pinned in `requirements.lock`; pytest, Ruff and
-Playwright are development-only. The Docker base image is pinned by digest.
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt -c requirements.lock -r requirements-dev.txt
-python -m pytest -q
-pytest -q
-python -m py_compile ephemeral_app.py ephemeral/*.py scripts/verify_runtime.py
-ruff check .
+```powershell
+wsl.exe -d Ubuntu-24.04 -- python3 /home/eko/hfsai/scripts/deployment.py current status
+wsl.exe -d Ubuntu-24.04 -- python3 /home/eko/hfsai/scripts/deployment.py current start
+wsl.exe -d Ubuntu-24.04 -- python3 /home/eko/hfsai/scripts/deployment.py current stop
 ```
 
-For browser tests, install the Playwright Chromium runtime in the development
-environment, then run `python scripts/ui_smoke.py`. Never test with real HFS data
-or restart shared services merely to test this UI. See [validation](docs/VALIDATION.md)
-for the published baseline. The [reliability handoff](docs/RELIABILITY_READINESS.md)
-records the scoped candidate changes, limits, current checks and validation history.
+The single fast rollback command is:
 
-The application code is MIT-licensed; model weights and bundled upstream software
-retain their own licenses. See [LICENSE.md](LICENSE.md).
+```powershell
+wsl.exe -d Ubuntu-24.04 -- python3 /home/eko/hfsai/scripts/deployment.py current rollback
+```
+
+Rollback restores the retained old frontend against the same engine. `start` resumes the recorded selection; `current adopt` explicitly returns to the qualified stable-prefix frontend. The manager guards container/image identities and one-GPU-engine operation. Tika remains running. See [permanent profile and other recovery routes](deployment/selected/README.md).
+
+## What stable-prefix changes
+
+The initial system instructions and historical turn timestamps remain stable. Each newest user turn receives its own captured time without adding a late system message or changing the model's chat template. Actual assistant history and native images are preserved. Conversation salts remain outside model-visible text; New Chat starts a new logical cache owner.
+
+In the established controlled cross-minute document follow-up, cached tokens changed from 0 to 24,960, server prefill from 7.947 s to 1.156 s, and first generated token from 7.829 s to 1.182 s. This is a workload-specific reuse result. Fresh requests are not claimed to be faster, and the model is not claimed to be universally 85% faster.
+
+The exact frontend passed the frozen 16-case qualification, real multi-turn/multimodal reuse, exact capacity boundary, lifecycle/recovery and more than 60 minutes of mixed use. It does not eliminate unsupported source/attribution claims. Native attention is approximate; no-draft/speculative target bit identity and rare-error bounds remain unproven. The [closeout](docs/OPTIMIZATION_CLOSEOUT_20260915.md) records rejected ideas and the unresolved later-generation difference.
+
+## Privacy and recovery assets
+
+No chat database or intentional durable prompt/upload/history storage. Reasoning remains hidden. New Chat and cancellation release conversation-owned state; GPU/framework/browser/clipboard buffers have separate lifetimes, so this is not forensic erasure. The UI retains its approved departmental network/origin settings and has no new login/TLS layer. Model and Tika endpoints remain private. [Privacy details](deployment/privacy/README.md).
+
+Only source, guarded recipes, hashes and concise evidence summaries belong here. Model weights, exact software images, raw traces/tensors, native binaries and recovery archives remain local. The native helper's licensing ambiguity is unresolved; repository access does not grant binary redistribution permission. See [native provenance](deployment/fp4/native/README.md).
+
+## Development and installation
+
+The root Compose descriptor represents the selected frontend; it does not recreate the retained engine or Tika. Use the manager for transitions. Original shared Ollama Compose is preserved as `docker-compose.ollama-shared.yml`; independent rebuild recipes remain `docker-compose.fp4.yml` and `docker-compose.ollama-recovery.yml`.
+
+Use the [operator guide](System%20Deployment%20Guide.md) for this machine and [FP4 source build guidance](docs/FP4_DEPLOYMENT.md) for separately authorized new-host work. A rebuilt image is not automatically the qualified binary. Native compilation/licensing and new-host acceptance remain explicit prerequisites.
+
+```bash
+python -m pytest -q
+ruff check .
+python -m compileall -q ephemeral ephemeral_app.py scripts deployment/selected
+python -m pip check
+python scripts/verify_selected.py
+```
+
+No dependency upgrade is included. The [release validation record](docs/RELEASE_VALIDATION_20260915.md) distinguishes this final source/adoption validation from historical GPU campaigns.
+
+The 2026-09-11 through 2026-09-15 Qwen3.8 local inference optimization round is closed. Further engine optimization requires new evidence, a successor model, a supported upstream simplification, or a demonstrated consequential regression.

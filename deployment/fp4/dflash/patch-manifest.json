@@ -1,6 +1,6 @@
 {
   "vllm_commit": "6fe67cbbf3e43da89bebf6ab0eeaca4ba6c75663",
-  "status": "Owner-authorized local deployment; bounded runtime passed, strict grounding gate failed; see docs/CURRENT_DEPLOYMENT.md",
+  "status": "experimental until packaged runtime qualifies",
   "patches": [
     {
       "path": "vllm/model_executor/models/qwen3_5.py",

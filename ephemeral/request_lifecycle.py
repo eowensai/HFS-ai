@@ -67,7 +67,8 @@ class WorkSnapshot:
 
 
 class TurnWork:
-    def __init__(self, owner, messages, text, files, thinking, system, default_prompt):
+    def __init__(self, owner, messages, text, files, thinking, system, default_prompt,
+                 *, turn_time=None):
         # One lock order for publication, rendering and owner release. Never hold
         # it over parser/model I/O. Shared ownership makes a snapshot consistent.
         self.lock = owner._lock
@@ -75,6 +76,12 @@ class TurnWork:
         self.id = uuid.uuid4().hex
         self.text, self.files = text, files
         self.thinking, self.system, self.default_prompt = thinking, system, default_prompt
+        self.turn_time = turn_time
+        with self.lock:
+            if not owner.released:
+                if owner.system_prompt is None:
+                    owner.system_prompt = system
+                self.system = owner.system_prompt
         self.stage = 'Preparing the submission…'
         self.partial = ''
         self.error = ''
@@ -103,6 +110,7 @@ class TurnWork:
                 upload.close()
             self.files.clear()
             self.partial = self.text = self.system = self.error = self.notice = ''
+            self.turn_time = None
             self.user_message = None
             self.stage = ''
             self.stage_started = None
@@ -206,6 +214,8 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
                 if text:
                     parts.append({'type': 'text', 'text': text})
                 user = {'id': work.id, 'role': 'user', 'content': parts or text}
+                if work.turn_time is not None:
+                    user['_application_time'] = work.turn_time
                 if not conversation_room(work.messages, retained_bytes(user)):
                     # Keep receipts in the existing rejection path, not contents.
                     work.user_message = user
@@ -229,6 +239,8 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
                 raise BudgetError('Conversation storage limit reached. New content was excluded; existing conversation is intact.')
             payload = [{'role': 'system', 'content': work.system}, *api_messages([*work.messages, *pending], vision)]
             request = request_builder(payload, work.thinking)
+            if cfg.LLM_BACKEND == 'vllm':
+                request.setdefault('extra_body', {})['cache_salt'] = work.owner.cache_salt
         context_checked = True
         capacity = context()
         measurement_started = True
@@ -401,6 +413,7 @@ def run_turn(work, *, parse, model_ready, vision_ready, context, request_builder
                 work.owner.budget_snapshot = BudgetSnapshot(work.owner.id, revision, measured)
             work.text = ''
             work.system = ''
+            work.turn_time = None
             work.stage = ''
             work.stage_started = None
             work.request_budget = None

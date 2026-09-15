@@ -1,0 +1,137 @@
+{
+  "name": "ephemerai-bounded",
+  "networks": {
+    "llm-net": {
+      "name": "ephemeral-llm_llm-net",
+      "ipam": {},
+      "external": true
+    }
+  },
+  "services": {
+    "vllm": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
+      "container_name": "ephemerai-vllm-bounded",
+      "deploy": {
+        "resources": {
+          "reservations": {
+            "devices": [
+              {
+                "capabilities": [
+                  "gpu"
+                ],
+                "driver": "nvidia",
+                "count": -1
+              }
+            ]
+          }
+        },
+        "placement": {}
+      },
+      "entrypoint": null,
+      "environment": {
+        "CUDA_CACHE_PATH": "/root/.cache/cuda-driver",
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "EPHEMERAI_ENGINE_STALL_SECONDS": "600",
+        "EPHEMERAI_NATIVE_PREFILL": "1",
+        "MAX_JOBS": "2",
+        "NCCL_P2P_DISABLE": "1",
+        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+        "TMPDIR": "/tmp",
+        "TORCHINDUCTOR_CACHE_DIR": "/root/.cache/torchinductor/vllm",
+        "TORCHINDUCTOR_COMPILE_THREADS": "2",
+        "TRITON_CACHE_DIR": "/root/.cache/triton/vllm",
+        "VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE": "67108864",
+        "VLLM_PP_LAYER_PARTITION": "32,32",
+        "VLLM_USE_V2_MODEL_RUNNER": "1",
+        "VLLM_WSL2_ENABLE_PIN_MEMORY": "1",
+        "XDG_CONFIG_HOME": "/tmp/config"
+      },
+      "expose": [
+        "8000"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python3",
+          "/opt/ephemerai/healthcheck.py"
+        ],
+        "timeout": "15s",
+        "interval": "20s",
+        "retries": 3,
+        "start_period": "8m0s"
+      },
+      "image": "sha256:8b6b56ae42e195d662d7d09c99ed4fcd405b4a4d6684b26f13423f7b39901452",
+      "init": true,
+      "labels": {
+        "ephemerai.deployment": "fp4-20260914-bounded"
+      },
+      "logging": {
+        "driver": "none"
+      },
+      "mem_limit": "27917287424",
+      "memswap_limit": "27917287424",
+      "networks": {
+        "llm-net": null
+      },
+      "pull_policy": "never",
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "shm_size": "4294967296",
+      "stop_grace_period": "40s",
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=4g,mode=1777",
+        "/var/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777"
+      ],
+      "ulimits": {
+        "core": 0
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "fp4-models",
+          "target": "/models/radixark",
+          "read_only": true,
+          "volume": {
+            "subpath": "radixark"
+          }
+        },
+        {
+          "type": "volume",
+          "source": "qualified-kernel-cache",
+          "target": "/root/.cache",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "dflash-models",
+          "target": "/models/dflash",
+          "read_only": true,
+          "volume": {
+            "subpath": "w4"
+          }
+        }
+      ],
+      "working_dir": "/tmp"
+    }
+  },
+  "volumes": {
+    "dflash-models": {
+      "name": "ephemerai-dflash-weights-20260914",
+      "external": true
+    },
+    "fp4-models": {
+      "name": "ephemeral-llm_fp4-models",
+      "external": true
+    },
+    "qualified-kernel-cache": {
+      "name": "ephemerai-qualification-packaged-cache-20260914",
+      "external": true
+    }
+  }
+}

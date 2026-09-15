@@ -1,0 +1,71 @@
+{
+  "stable-prefix": {
+    "app": {
+      "name": "hfsai-app-stable-prefix",
+      "image": "sha256:32bd1e140e88eed3b2fb5b0f77eefce5515194114091c8d580f076e6f4547aa6",
+      "compose": "app.compose.json",
+      "service": "ephemeral-app"
+    },
+    "engine": {
+      "name": "ephemerai-vllm-bounded",
+      "image": "sha256:8b6b56ae42e195d662d7d09c99ed4fcd405b4a4d6684b26f13423f7b39901452"
+    }
+  },
+  "baseline": {
+    "app": {
+      "name": "ephemeral-app-bounded",
+      "image": "sha256:7209450b54fc5144399cf8dbb7aa9999d94ae94505afdee282a8b773b22dc184"
+    },
+    "engine": {
+      "name": "ephemerai-vllm-bounded",
+      "image": "sha256:8b6b56ae42e195d662d7d09c99ed4fcd405b4a4d6684b26f13423f7b39901452"
+    }
+  },
+  "previous-fp4": {
+    "app": {
+      "name": "ephemeral-app-qualified",
+      "image": "sha256:7209450b54fc5144399cf8dbb7aa9999d94ae94505afdee282a8b773b22dc184"
+    },
+    "engine": {
+      "name": "ephemerai-vllm-qualified",
+      "image": "sha256:f1b4eddd105d7d47435be8358edde28c3d4d9f5df50d0a9944f8a15882c14094"
+    }
+  },
+  "original-fp4": {
+    "app": {
+      "name": "ephemeral-app",
+      "image": "sha256:d71e3bccdffed2253ecbb5f67d1dd33ac235144480b7c8909498c19b335704d0"
+    },
+    "engine": {
+      "name": "ephemerai-vllm",
+      "image": "sha256:5b1f1b2192c9682e41e1d2f81476cc7d5ee380a2fe59623a17f7698721707668"
+    }
+  },
+  "ollama": {
+    "app": {
+      "name": "ephemeral-app-ollama-rollback-20260913",
+      "image": "sha256:a6d022949aaee2f670779110e99b6f4697396e393c8e336c53386fc6f8f36f83"
+    },
+    "engine": {
+      "name": "ollama",
+      "image": "sha256:57d60e686821ea81a7748a3ec8141308c8b8f95b27105713954abf7a6529e700"
+    }
+  },
+  "mtp": {
+    "app": {
+      "name": "hfsai-app-mtp-recovery",
+      "image": "sha256:7209450b54fc5144399cf8dbb7aa9999d94ae94505afdee282a8b773b22dc184",
+      "compose": "mtp.compose.json",
+      "service": "ephemeral-app"
+    },
+    "engine": {
+      "name": "hfsai-vllm-mtp-recovery",
+      "image": "sha256:8601ca3e55990b33594cc3254f5f16248140acd278fe5e24ba122756d82a04e0",
+      "compose": "mtp.compose.json",
+      "service": "vllm",
+      "create_volumes": [
+        "hfsai-mtp-recovery-compiler-cache"
+      ]
+    }
+  }
+}

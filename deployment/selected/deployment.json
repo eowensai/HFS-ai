@@ -1,0 +1,15 @@
+{
+  "model": "ephemerai-qwen3.8-27b-nvfp4-131072",
+  "model_revision": "319f741cce68d7914884900c138a1fbb70a42f30",
+  "context": 131072,
+  "kv_cache": "fp8_e4m3",
+  "engine_image_id": "sha256:8b6b56ae42e195d662d7d09c99ed4fcd405b4a4d6684b26f13423f7b39901452",
+  "engine_image_ref": "sha256:8b6b56ae42e195d662d7d09c99ed4fcd405b4a4d6684b26f13423f7b39901452",
+  "inference_profile": "dflash",
+  "native_manifest_sha256": "8ff384cf5a628c4137e934be1ce745e2b1d7153c096a671ba45f919769d1aa29",
+  "speculative_method": "dflash",
+  "speculative_tokens": 7,
+  "draft_model_revision": "4d30ec736ffc6b8688dc2ae2b502d9b48bdec279",
+  "draft_embedding": "int4-group32-fp16-scales-bf16-mask",
+  "numerics_manifest_sha256": "03358070cee0aa14eabeb20a4888ba9cbff25db690ab13e95d53989f6ebd2342"
+}

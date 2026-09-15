@@ -1,3 +1,5 @@
+> September15 update: the selected departmental frontend/engine and current commands are in [CURRENT_DEPLOYMENT.md](CURRENT_DEPLOYMENT.md) and the [operator guide](../System%20Deployment%20Guide.md). Historical shared-stack commands below require the explicit `docker-compose.ollama-shared.yml`; bare Compose no longer selects Ollama. Earlier evidence retains its original cutoff.
+
 # FP4 / DFlash and isolated Ollama recovery
 
 

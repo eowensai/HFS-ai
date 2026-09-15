@@ -69,3 +69,14 @@ downloads/
 *.tar
 ephemeral/assets/qwen-tokenizer.json
 deployment/fp4/native/*.o
+
+# Private local evidence, immutable recovery software and native helper products.
+evidence/
+research/
+*.nsys-rep
+*.sqlite
+*.pt
+*.safetensors
+*.gguf
+*.o
+*.cubin

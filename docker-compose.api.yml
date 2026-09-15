@@ -2,7 +2,7 @@
 # docker-compose.api.yml — optional Ollama API exposure override
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.api.yml up -d
+#   docker compose -f docker-compose.ollama-shared.yml -f docker-compose.api.yml up -d
 #
 # Security warning:
 #   Raw Ollama in this stack has no application-layer authentication.

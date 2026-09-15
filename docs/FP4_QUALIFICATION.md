@@ -1,3 +1,48 @@
+# Current qualification and limitations: September 15, 2026
+
+The selected application is the frozen stable-prefix image 32bd1e140e88 with unchanged corrected DFlash/native engine 8b6b56ae42e1. Full immutable identities are in [current deployment](CURRENT_DEPLOYMENT.md). The owner authorized adoption and main alignment after the bounded qualification and abrupt-loss observation were complete. The historical engine evidence below is retained with its original scope.
+
+## Stable-prefix release qualification
+
+Exactly five runtime files changed; their qualified bytes are pinned in `deployment/selected/qualified-runtime.json`. No engine, template, dependency, precision, context, output reserve, image/extraction or sampling change occurred. The 16-case frozen holdout ran once per arm with version labels hidden where practical and grades frozen before unblinding; actual prior answers were used in recursive cases. It was not tuned against or rerun for adoption.
+
+| Measure | Previous frontend | Candidate |
+| --- | ---: | ---: |
+| Required core fact sets | 16/16 | 16/16 |
+| Natural completions including recursive turns | 20/20 | 20/20 |
+| Critical-failure cases | 1 | 0 |
+| Cases with minor failures | 4 | 6 |
+| Fully clean cases | 11/16 | 10/16 |
+
+All holdout failures remain recorded:
+
+- Baseline critical `chain_cross_source`: invented a change-management record referenced by X2. Candidate's pass does not prove a fix.
+- Baseline minor `owner_operator`: called a manual procedure defined when only the check's occurrence was supported.
+- Candidate-only minor `image_document_conflict`: added unsupported year 2026 to D3's September 10 date; governing revision/date remained correct.
+- Candidate-only minor `absent_evidence`: overstated not-discussed budget as not-set/approved and omitted A1 attribution.
+- Candidate-only minor `chain_uncertainty`: called a two-sentence source one sentence; sponsor/unknown status remained correct.
+- Both arms minor `partial_tail`, `chart_axis`, `chart_legend`: explicit source ID/filename omitted despite correct core content.
+
+Three candidate-only minor findings and one fewer clean case prevent a quality-improvement claim. The release's cache benefit and bounded functional qualification support adoption; universal equivalence is not established. Historical Business Systems ownership loss, invented NIST locator, image funding/permanence corroboration, risk-register attribution and other prior findings remain open.
+
+## Functional coverage already completed
+
+Three natural turns crossed minute boundaries with actual preceding answers and preserved historical timestamps. Long image/document follow-ups reused 24,960 tokens beyond the image's rendered end, proving cached image-conditioned state. New conversation salts yielded zero inherited reuse. Eight-image behavior, upload/Tika, explicit xhigh and default-medium settings, export, New Chat/session isolation, and cancellation before/after first token passed.
+
+Exact admission accepted 98,304 input + 32,768 reserve = 131,072 and rejected 98,305 input before generation. The same artifact completed 3,605.001 seconds of externally observed mixed use: 126 natural completions, 12 intentional cancellations and zero unplanned request failures among 138 recurring requests. These repeated fixtures are bounded sustained-use evidence, not independent general-quality samples.
+
+Supported rollback and interruption-resumable restoration passed. A later robust abrupt-engine-loss observer closed the initial missing observation: visible failure/incomplete caption, partial assistant excluded from the next completed history, successful restoration and document/image follow-up, unchanged image/five source hashes. The original failed observer record remains retained.
+
+Adoption performs only a short normal-path smoke on the exact image with clean permanent mounts. No full holdout, soak or speed campaign is repeated. See [final validation](RELEASE_VALIDATION_20260915.md).
+
+## Current limits and closure
+
+Historical grounding failures remain. Native FP8 attention is approximate. No-draft/spec target bit identity and rare-error bounds are unproven; later-generation divergence is unresolved with no serving defect/fix qualified. The current grounding contract was rejected. Native helper license ambiguity remains unresolved. Closed engine leads and future re-entry conditions are in [September 15 closeout](OPTIMIZATION_CLOSEOUT_20260915.md).
+
+---
+
+## Preserved September 14 engine qualification record
+
 > Historical engineering evidence carried into HFS-ai. For the current private-repository port and its fresh validation, see [HFS-ai port](HFS_AI_FP4_PORT.md). GPU measurements below were collected before this source port.
 
 # Dual RTX 5060 Ti: native FP8 attention and DFlash qualification

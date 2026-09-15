@@ -1,0 +1,12 @@
+{
+  "model": "ephemerai-qwen3.8-27b-nvfp4-131072",
+  "model_revision": "319f741cce68d7914884900c138a1fbb70a42f30",
+  "context": 131072,
+  "kv_cache": "fp8_e4m3",
+  "engine_image_id": "sha256:8601ca3e55990b33594cc3254f5f16248140acd278fe5e24ba122756d82a04e0",
+  "engine_image_ref": "sha256:8601ca3e55990b33594cc3254f5f16248140acd278fe5e24ba122756d82a04e0",
+  "inference_profile": "mtp",
+  "native_manifest_sha256": "8ff384cf5a628c4137e934be1ce745e2b1d7153c096a671ba45f919769d1aa29",
+  "mtp_tokens": 3,
+  "numerics_manifest_sha256": "03358070cee0aa14eabeb20a4888ba9cbff25db690ab13e95d53989f6ebd2342"
+}

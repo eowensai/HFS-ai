@@ -215,6 +215,9 @@ def prepare(backend, profile='mtp'):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == 'current':
+        subprocess.run([sys.executable, str(ROOT / 'deployment/selected/manage.py'), *sys.argv[2:]], check=True)
+        return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['prepare', 'models', 'start', 'stop', 'status', 'config'])
     parser.add_argument('backend', choices=['ollama', 'fp4'])
